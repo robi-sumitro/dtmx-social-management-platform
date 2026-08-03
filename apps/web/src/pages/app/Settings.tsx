@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { User as UserIcon, Lock, KeyRound, Camera, LogOut, Save } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
-import { api } from '@/lib/api';
-import type { User } from '@/lib/types';
+import { api, mediaUrl } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import type { User, MediaFile } from '@/lib/types';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Field';
@@ -16,12 +17,35 @@ export function Settings() {
   const { user, updateUser, logout, refreshProfile } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
+  const avatarRef = useRef<HTMLInputElement>(null);
 
   const [profile, setProfile] = useState({ fullName: user?.fullName ?? '', username: user?.username ?? '' });
   const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPw, setSavingPw] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [pwErrors, setPwErrors] = useState<Record<string, string>>({});
+
+  const handleAvatarChange = async (file: File | null) => {
+    if (!file) return;
+    setUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append('files', file);
+      const uploaded = await api.upload<MediaFile[]>('/media/upload', formData);
+      const avatarFile = uploaded?.[0];
+      const avatarUrl = avatarFile ? mediaUrl(avatarFile.filename) : '';
+      if (!avatarUrl) throw new Error('URL avatar tidak ditemukan');
+      const updated = await api.patch<User>('/users/me', { avatar: avatarUrl });
+      updateUser(updated);
+      toast.success('Avatar diperbarui');
+      await refreshProfile();
+    } catch (err) {
+      toast.error('Gagal unggah avatar', err instanceof Error ? err.message : 'Terjadi kesalahan');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const saveProfile = async () => {
     setSavingProfile(true);
@@ -63,6 +87,17 @@ export function Settings() {
     <div className="mx-auto max-w-3xl animate-fade-in">
       <PageHeader title="Pengaturan" description="Kelola profil dan keamanan akun kamu." />
 
+      <input
+        ref={avatarRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        className="hidden"
+        onChange={(e) => {
+          void handleAvatarChange(e.target.files?.[0] ?? null);
+          e.target.value = '';
+        }}
+      />
+
       <Card className="mb-6">
         <CardHeader icon={<UserIcon className="h-4 w-4" />} title="Profil" />
         <CardBody className="space-y-5">
@@ -70,11 +105,12 @@ export function Settings() {
             <div className="relative">
               <Avatar name={user?.fullName || user?.username || user?.email} src={user?.avatar} size="lg" />
               <button
-                className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg ring-2 ring-white transition hover:bg-brand-500"
-                onClick={() => toast.info('Unggah avatar', 'Fitur unggah avatar belum tersedia di backend.')}
+                className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-white shadow-lg ring-2 ring-white transition hover:bg-brand-500 disabled:opacity-60"
+                onClick={() => avatarRef.current?.click()}
+                disabled={uploadingAvatar}
                 aria-label="Ubah avatar"
               >
-                <Camera className="h-4 w-4" />
+                <Camera className={cn('h-4 w-4', uploadingAvatar && 'animate-pulse')} />
               </button>
             </div>
             <div>

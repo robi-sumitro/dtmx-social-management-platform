@@ -179,16 +179,20 @@ Endpoint utama (prabu `apps/api/src/**`):
 
 ```
 POST /auth/register, /auth/login, /auth/google, /auth/facebook
-GET  /users/me, /profile
-POST /social-accounts (connect akun platform)
+POST /auth/refresh
+GET  /users/me, PATCH /users/me
+POST /social-accounts/connect (connect akun platform)
+GET  /social-accounts
 POST /posts (buat & jadwalkan posting)
 GET  /inbox (komentar/DM)
-POST /ai/reply, /ai/caption (fitur AI)
+GET  /ai/status, POST /ai/generate (fitur AI)
 POST /media/upload
-POST /payments/checkout
-POST /subscriptions/activate
+GET  /payments/methods
+GET  /subscriptions/plans, /active, /usage
+POST /subscriptions/subscribe
+POST /subscriptions/:id/proof
 GET  /admin/*
-GET  /features
+GET  /flags, /health
 ```
 
 Auth menggunakan JWT Bearer. Guard `RolesGuard` + `FeatureGuard` untuk kontrol akses & fitur.

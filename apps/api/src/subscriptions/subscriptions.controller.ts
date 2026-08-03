@@ -2,13 +2,14 @@ import { Body, Controller, Get, Param, Post, UploadedFile, UseGuards, UseInterce
 import { FileInterceptor } from '@nestjs/platform-express';
 import { SubscriptionsService } from './subscriptions.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
-import { CurrentUser } from '../common/decorators/auth.decorators';
+import { CurrentUser, Public } from '../common/decorators/auth.decorators';
 
 @Controller('subscriptions')
 @UseGuards(JwtAuthGuard)
 export class SubscriptionsController {
   constructor(private readonly subs: SubscriptionsService) {}
 
+  @Public()
   @Get('plans')
   plans() {
     return this.subs.getPlans();

@@ -44,6 +44,8 @@ export function Billing() {
   const activeSub = useFetch<Subscription | null>(() => api.get('/subscriptions/active'));
 
   const [selected, setSelected] = useState<Plan | null>(null);
+  const [step, setStep] = useState<'methods' | 'upload'>('methods');
+  const [pendingManualSub, setPendingManualSub] = useState<string | null>(null);
   const [method, setMethod] = useState<PaymentMethod>('manual');
   const [methods, setMethods] = useState<PaymentMethod[]>(['manual', 'stripe', 'tripay', 'midtrans']);
   const [processing, setProcessing] = useState(false);
@@ -52,8 +54,15 @@ export function Billing() {
   const active = activeSub.data;
   const allPlans = plans.data ?? [];
 
+  const closeModal = () => {
+    setSelected(null);
+    setPendingManualSub(null);
+    setStep('methods');
+  };
+
   const openSubscribe = async (plan: Plan) => {
     setSelected(plan);
+    setStep('methods');
     setMethod('manual');
     try {
       const enabled = await api.get<PaymentMethod[]>('/payments/methods');
@@ -73,14 +82,10 @@ export function Billing() {
       });
       if (res.mode === 'manual' && res.subscriptionId) {
         setMethod('manual');
+        proofRef.current?.setAttribute('data-sub', res.subscriptionId);
+        setPendingManualSub(res.subscriptionId);
+        setStep('upload');
         toast.info('Pembayaran manual', 'Unggah bukti transfer untuk konfirmasi admin.');
-        if (res.subscriptionId) {
-          await new Promise<void>((r) => {
-            proofRef.current?.setAttribute('data-sub', res.subscriptionId ?? '');
-            r();
-          });
-        }
-        setSelected(null);
         return;
       }
       if (res.payUrl) {
@@ -99,7 +104,7 @@ export function Billing() {
   };
 
   const uploadProof = async (file: File | null, subscriptionId: string | null) => {
-    const sub = subscriptionId ?? proofRef.current?.getAttribute('data-sub');
+    const sub = subscriptionId ?? pendingManualSub ?? proofRef.current?.getAttribute('data-sub');
     if (!file || !sub) {
       toast.warning('Pilih file bukti');
       return;
@@ -110,11 +115,14 @@ export function Billing() {
       formData.append('file', file);
       await api.upload<unknown>(`/subscriptions/${sub}/proof`, formData);
       toast.success('Bukti terunggah', 'Admin akan mengonfirmasi pembayaran kamu.');
-      setUploading(false);
+      closeModal();
       activeSub.refetch();
+      usage.refetch();
+      subs.refetch();
     } catch (err) {
-      setUploading(false);
       toast.error('Gagal unggah bukti', err instanceof Error ? err.message : 'Terjadi kesalahan');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -287,59 +295,80 @@ export function Billing() {
 
       <Modal
         open={!!selected}
-        onClose={() => setSelected(null)}
-        title={`Berlangganan ${selected?.name ?? ''}`}
-        description={`${formatCurrency(selected?.price ?? 0, selected?.currency ?? 'USD')} / bulan`}
+        onClose={closeModal}
+        title={step === 'upload' ? 'Unggah Bukti Transfer' : `Berlangganan ${selected?.name ?? ''}`}
+        description={step === 'upload' ? 'Langkah terakhir: kirim bukti pembayaran agar admin dapat mengonfirmasi.' : `${formatCurrency(selected?.price ?? 0, selected?.currency ?? 'USD')} / bulan`}
         footer={
-          <div className="flex justify-end gap-2.5">
-            <Button variant="secondary" onClick={() => setSelected(null)}>Batal</Button>
-            <Button onClick={() => void subscribe()} loading={processing} disabled={!selected}>
-              {method === 'manual' ? 'Mulai & Unggah Bukti' : 'Lanjut ke Pembayaran'}
-            </Button>
-          </div>
+          step === 'upload' ? null : (
+            <div className="flex justify-end gap-2.5">
+              <Button variant="secondary" onClick={closeModal}>Batal</Button>
+              <Button onClick={() => void subscribe()} loading={processing} disabled={!selected}>
+                {method === 'manual' ? 'Mulai & Unggah Bukti' : 'Lanjut ke Pembayaran'}
+              </Button>
+            </div>
+          )
         }
       >
-        <div className="space-y-4">
-          <p className="text-sm text-slate-500">Pilih metode pembayaran:</p>
-          <div className="space-y-2.5">
-            {methods.map((m) => {
-              const meta = PAYMENT_METHOD_META[m];
-              return (
-                <button
-                  key={m}
-                  onClick={() => setMethod(m)}
-                  className={cn(
-                    'flex w-full items-center gap-3 rounded-xl border p-4 text-left transition',
-                    method === m ? 'border-brand-400 bg-brand-50/60 ring-1 ring-brand-200' : 'border-slate-200 hover:border-slate-300',
-                  )}
-                >
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-lg">{meta?.icon ?? '💳'}</span>
-                  <span className="flex-1">
-                    <span className="block text-sm font-semibold text-slate-800">{meta?.label ?? m}</span>
-                    <span className="block text-xs text-slate-400">
-                      {m === 'manual' ? 'Transfer bank + upload bukti' : 'Redirect ke gateway pembayaran'}
-                    </span>
-                  </span>
-                  <span className={cn('flex h-5 w-5 items-center justify-center rounded-full border-2', method === m ? 'border-brand-500 bg-brand-500 text-white' : 'border-slate-300')}>
-                    {method === m && <Check className="h-3.5 w-3.5" />}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {method === 'manual' && (
-            <div className="rounded-xl border border-amber-100 bg-amber-50/60 p-4 text-sm text-amber-700">
-              Setelah klik "Mulai", unggah bukti transfer di halaman berikutnya. Admin akan mengonfirmasi pembayaranmu.
-            </div>
-          )}
-
-          {uploading && (
-            <p className="flex items-center gap-2 text-xs text-slate-400">
-              <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Mengunggah bukti...
+        {step === 'upload' ? (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-500">
+              Langganan kamu sudah tercatat sebagai <span className="font-medium text-slate-700">menunggu pembayaran</span>.
+              Pilih file bukti transfer (gambar atau PDF) di bawah ini.
             </p>
-          )}
-        </div>
+            <button
+              type="button"
+              onClick={() => proofRef.current?.click()}
+              className="flex w-full flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50/60 p-8 text-center transition hover:border-brand-400 hover:bg-brand-50/40"
+            >
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-gradient text-white shadow-glow">
+                <UploadCloud className="h-6 w-6" />
+              </span>
+              <span className="text-sm font-semibold text-slate-700">Klik untuk memilih file</span>
+              <span className="text-xs text-slate-400">JPG, PNG, atau PDF</span>
+            </button>
+            {uploading && (
+              <p className="flex items-center gap-2 text-xs text-slate-400">
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Mengunggah bukti...
+              </p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-500">Pilih metode pembayaran:</p>
+            <div className="space-y-2.5">
+              {methods.map((m) => {
+                const meta = PAYMENT_METHOD_META[m];
+                return (
+                  <button
+                    key={m}
+                    onClick={() => setMethod(m)}
+                    className={cn(
+                      'flex w-full items-center gap-3 rounded-xl border p-4 text-left transition',
+                      method === m ? 'border-brand-400 bg-brand-50/60 ring-1 ring-brand-200' : 'border-slate-200 hover:border-slate-300',
+                    )}
+                  >
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-lg">{meta?.icon ?? '💳'}</span>
+                    <span className="flex-1">
+                      <span className="block text-sm font-semibold text-slate-800">{meta?.label ?? m}</span>
+                      <span className="block text-xs text-slate-400">
+                        {m === 'manual' ? 'Transfer bank + upload bukti' : 'Redirect ke gateway pembayaran'}
+                      </span>
+                    </span>
+                    <span className={cn('flex h-5 w-5 items-center justify-center rounded-full border-2', method === m ? 'border-brand-500 bg-brand-500 text-white' : 'border-slate-300')}>
+                      {method === m && <Check className="h-3.5 w-3.5" />}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {method === 'manual' && (
+              <div className="rounded-xl border border-amber-100 bg-amber-50/60 p-4 text-sm text-amber-700">
+                Setelah klik "Mulai", unggah bukti transfer di halaman berikutnya. Admin akan mengonfirmasi pembayaranmu.
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   );

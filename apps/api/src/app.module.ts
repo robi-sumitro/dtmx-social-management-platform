@@ -40,7 +40,7 @@ import { AppController } from './app.controller';
           {
             rootPath: uploads,
             serveRoot: '/uploads',
-            exclude: ['/api*'],
+            exclude: ['/api/(.*)'],
           },
         ];
         // Serve the built web frontend (Vite SPA) when it exists.
@@ -48,7 +48,7 @@ import { AppController } from './app.controller';
           options.push({
             rootPath: webDist,
             renderPath: '*',
-            exclude: ['/api*', '/uploads*'],
+            exclude: ['/api/(.*)', '/uploads/(.*)'],
           });
         }
         return options;

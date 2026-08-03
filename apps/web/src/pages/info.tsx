@@ -173,7 +173,7 @@ export function DocsPage() {
           list: [
             'POST /api/posts — buat & jadwalkan posting',
             'GET /api/inbox — komentar dan DM terpusat',
-            'POST /api/ai/reply — balasan AI',
+            'POST /api/ai/generate — balasan dan konten AI',
             'POST /api/media/upload — unggah media',
           ],
         },
@@ -181,8 +181,9 @@ export function DocsPage() {
           heading: 'Akun & Pembayaran',
           list: [
             'POST /api/social-accounts/connect — hubungkan akun sosial',
-            'POST /api/subscriptions/activate — aktifkan langganan',
-            'POST /api/payments/checkout — mulai pembayaran',
+            'POST /api/subscriptions/subscribe — mulai langganan',
+            'GET /api/payments/methods — daftar metode pembayaran',
+            'GET /api/subscriptions/plans — daftar paket (publik)',
           ],
         },
         {

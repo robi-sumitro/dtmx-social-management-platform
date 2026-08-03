@@ -104,10 +104,16 @@ export async function request<T>(path: string, options?: RequestOptions): Promis
     throw new Error(parseError(text));
   }
   if (!text) return undefined as T;
+  const contentType = res.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) {
+    throw new Error(
+      `Endpoint ${path} tidak mengembalikan JSON (HTTP ${res.status}). API mungkin belum tersedia.`,
+    );
+  }
   try {
     return JSON.parse(text) as T;
   } catch {
-    return undefined as T;
+    throw new Error(`Respons dari ${path} tidak valid.`);
   }
 }
 

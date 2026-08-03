@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Plus, FileText, Trash2, Ban, CalendarClock } from 'lucide-react';
 import { useFetch } from '@/lib/useApi';
 import { api } from '@/lib/api';
@@ -30,6 +30,7 @@ export function Posts() {
   const [deleteTarget, setDeleteTarget] = useState<Post | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Post | null>(null);
   const toast = useToast();
+  const navigate = useNavigate();
 
   const { data, error, loading, refetch } = useFetch<Post[]>(() => api.get('/posts'), []);
   const posts = (data ?? []).filter((p) => (filter === 'all' ? true : p.status === filter));
@@ -93,7 +94,8 @@ export function Posts() {
             const meta = postStatusMeta(post.status);
             const preview = post.media?.[0]?.media;
             return (
-              <Card key={post.id} className="group overflow-hidden">
+              <div key={post.id} className="group cursor-pointer" onClick={() => navigate(`/app/posts/${post.id}`)}>
+              <Card className="overflow-hidden transition group-hover:shadow-cardHover">
                 {preview ? (
                   preview.fileType === 'video' ? (
                     <div className="relative flex h-44 items-center justify-center bg-slate-900">
@@ -136,12 +138,12 @@ export function Posts() {
                     <span className="text-xs capitalize text-slate-400">{post.postType}</span>
                     <div className="flex items-center gap-1">
                       {post.status === 'scheduled' && (
-                        <Button size="sm" variant="ghost" className="text-slate-500" onClick={() => setCancelTarget(post)}>
+                        <Button size="sm" variant="ghost" className="text-slate-500" onClick={(e) => { e.stopPropagation(); setCancelTarget(post); }}>
                           <Ban className="h-4 w-4" />
                           Batal
                         </Button>
                       )}
-                      <Button size="sm" variant="ghost" className="text-rose-500" onClick={() => setDeleteTarget(post)}>
+                      <Button size="sm" variant="ghost" className="text-rose-500" onClick={(e) => { e.stopPropagation(); setDeleteTarget(post); }}>
                         <Trash2 className="h-4 w-4" />
                         Hapus
                       </Button>
@@ -149,6 +151,7 @@ export function Posts() {
                   </div>
                 </div>
               </Card>
+            </div>
             );
           })}
         </div>

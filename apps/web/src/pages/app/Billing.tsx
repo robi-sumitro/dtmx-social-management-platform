@@ -12,7 +12,7 @@ import {
 import { useFetch } from '@/lib/useApi';
 import { api } from '@/lib/api';
 import type { Plan, PaymentMethod, Subscription, Payment, UsageResponse } from '@/lib/types';
-import { cn, formatCurrency, formatDate, subscriptionStatusMeta, PAYMENT_METHOD_META } from '@/lib/utils';
+import { cn, formatCurrency, formatDate, subscriptionStatusMeta, paymentStatusMeta, PAYMENT_METHOD_META } from '@/lib/utils';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -39,7 +39,7 @@ export function Billing() {
 
   const plans = useFetch<Plan[]>(() => api.get('/subscriptions/plans'));
   const subs = useFetch<Subscription[]>(() => api.get('/subscriptions/mine'));
-  const payments = useFetch<Payment[]>(() => api.get('/payments/methods').then(() => [] as Payment[]));
+  const payments = useFetch<Payment[]>(() => api.get('/payments'));
   const usage = useFetch<UsageResponse>(() => api.get('/subscriptions/usage'));
   const activeSub = useFetch<Subscription | null>(() => api.get('/subscriptions/active'));
 
@@ -281,6 +281,52 @@ export function Billing() {
               <Sparkles className="h-3.5 w-3.5" />
               Untuk pembayaran manual, upload bukti transfer lalu admin akan mengonfirmasi.
             </p>
+          </CardBody>
+        </Card>
+      </div>
+
+      <div className="mt-8">
+        <Card>
+          <CardHeader
+            icon={<Receipt className="h-4 w-4" />}
+            title="Riwayat Transaksi"
+            description="Semua pembayaran yang pernah dilakukan"
+          />
+          <CardBody>
+            {payments.loading ? (
+              <PageLoader label="Memuat transaksi..." />
+            ) : (payments.data ?? []).length === 0 ? (
+              <EmptyState icon={<Receipt className="h-6 w-6" />} title="Belum ada transaksi" description="Transaksi pembayaran kamu akan muncul di sini." />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
+                      <th className="px-5 py-3">Paket</th>
+                      <th className="px-4 py-3">Metode</th>
+                      <th className="px-4 py-3">Jumlah</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-right">Tanggal</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {(payments.data ?? []).map((pay) => (
+                      <tr key={pay.id} className="transition hover:bg-slate-50/60">
+                        <td className="px-5 py-3.5 font-semibold text-slate-800">{pay.plan?.name ?? 'Paket'}</td>
+                        <td className="px-4 py-3.5 capitalize text-slate-500">
+                          {PAYMENT_METHOD_META[pay.method]?.label ?? pay.method}
+                        </td>
+                        <td className="px-4 py-3.5 text-slate-700">{formatCurrency(pay.amount, pay.currency)}</td>
+                        <td className="px-4 py-3.5">
+                          <Badge className={paymentStatusMeta(pay.status).className}>{paymentStatusMeta(pay.status).label}</Badge>
+                        </td>
+                        <td className="px-4 py-3.5 text-right text-slate-500">{formatDate(pay.createdAt)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </CardBody>
         </Card>
       </div>

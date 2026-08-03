@@ -104,6 +104,17 @@ export function subscriptionStatusMeta(status: string): { label: string; classNa
   return map[status] ?? { label: status, className: 'bg-slate-100 text-slate-600 ring-slate-200' };
 }
 
+export function paymentStatusMeta(status: string): { label: string; className: string } {
+  const map: Record<string, { label: string; className: string }> = {
+    PENDING: { label: 'Menunggu', className: 'bg-amber-50 text-amber-700 ring-amber-200' },
+    PAID: { label: 'Dibayar', className: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
+    FAILED: { label: 'Gagal', className: 'bg-rose-50 text-rose-700 ring-rose-200' },
+    EXPIRED: { label: 'Kedaluwarsa', className: 'bg-orange-50 text-orange-700 ring-orange-200' },
+    REFUNDED: { label: 'Refund', className: 'bg-slate-100 text-slate-600 ring-slate-200' },
+  };
+  return map[status] ?? { label: status, className: 'bg-slate-100 text-slate-600 ring-slate-200' };
+}
+
 export const PLATFORM_META: Record<string, { label: string; color: string; bg: string }> = {
   facebook: { label: 'Facebook', color: 'text-[#1877F2]', bg: 'bg-[#1877F2]/10' },
   instagram: { label: 'Instagram', color: 'text-[#E4405F]', bg: 'bg-[#E4405F]/10' },

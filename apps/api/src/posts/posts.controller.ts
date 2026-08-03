@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -34,6 +35,12 @@ export class PostsController {
   @Get(':id')
   one(@Param('id') id: string, @CurrentUser('id') userId: string) {
     return this.posts.getById(userId, id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() body: any, @CurrentUser('id') userId: string) {
+    return this.posts.update(userId, id, body);
   }
 
   @UseGuards(JwtAuthGuard)

@@ -18,11 +18,10 @@ import {
 } from 'lucide-react';
 import { useFetch } from '@/lib/useApi';
 import { api } from '@/lib/api';
-import type { AdminDashboard, User, Plan, PendingSubscription, FeatureFlag } from '@/lib/types';
-import { formatDate, formatCurrency, subscriptionStatusMeta } from '@/lib/utils';
-import { PageHeader } from '@/components/shared/PageHeader';
+import type { AdminDashboard, User, Plan, PendingSubscription, FeatureFlag, Post } from '@/lib/types';
+import { formatDate, formatCurrency, subscriptionStatusMeta, postStatusMeta } from '@/lib/utils';
+import { PageHeader, StatCard, PlatformIcon } from '@/components/shared/PageHeader';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
-import { StatCard } from '@/components/shared/PageHeader';
 import { Tabs } from '@/components/ui/Tabs';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -46,7 +45,7 @@ import {
 } from 'recharts';
 import { Avatar } from '@/components/ui/Avatar';
 
-type Tab = 'overview' | 'users' | 'plans' | 'pending' | 'flags' | 'payments';
+type Tab = 'overview' | 'users' | 'plans' | 'pending' | 'flags' | 'payments' | 'posts';
 
 export function Admin() {
   const [tab, setTab] = useState<Tab>('overview');
@@ -66,6 +65,7 @@ export function Admin() {
         items={[
           { value: 'overview', label: 'Ringkasan' },
           { value: 'users', label: 'Pengguna' },
+          { value: 'posts', label: 'Postingan' },
           { value: 'plans', label: 'Paket' },
           { value: 'pending', label: 'Konfirmasi' },
           { value: 'flags', label: 'Feature Flags' },
@@ -75,6 +75,7 @@ export function Admin() {
 
       {tab === 'overview' && <Overview stats={stats.data} loading={stats.loading} />}
       {tab === 'users' && <UsersAdmin />}
+      {tab === 'posts' && <PostsAdmin />}
       {tab === 'plans' && <PlansAdmin />}
       {tab === 'pending' && <PendingAdmin />}
       {tab === 'flags' && <FlagsAdmin />}
@@ -276,6 +277,72 @@ function UsersAdmin() {
           </Select>
         </div>
       </Modal>
+    </Card>
+  );
+}
+
+function PostsAdmin() {
+  const { data, loading, refetch } = useFetch<Post[]>(() => api.post('/posts/scope/admin/all'));
+  const posts = (data ?? []) as (Post & { user?: { email: string } })[];
+
+  return (
+    <Card>
+      <CardHeader
+        icon={<FileText className="h-4 w-4" />}
+        title="Semua Postingan"
+        description={`${posts.length} postingan dari seluruh pengguna`}
+        action={
+          <Button size="sm" variant="secondary" onClick={() => refetch()} icon={<RefreshCw className="h-4 w-4" />}>
+            Segarkan
+          </Button>
+        }
+      />
+      {loading ? (
+        <PageLoader label="Memuat postingan..." />
+      ) : posts.length === 0 ? (
+        <EmptyState icon={<FileText className="h-6 w-6" />} title="Belum ada postingan" />
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
+                <th className="px-6 py-3">Pengguna</th>
+                <th className="px-4 py-3">Konten</th>
+                <th className="px-4 py-3">Platform</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Dibuat</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {posts.map((p) => {
+                const meta = postStatusMeta(p.status);
+                return (
+                  <tr key={p.id} className="transition hover:bg-slate-50/60">
+                    <td className="px-6 py-3.5">
+                      <p className="font-semibold text-slate-800">{p.user?.email ?? '—'}</p>
+                      <p className="text-xs text-slate-400">{p.postType}</p>
+                    </td>
+                    <td className="max-w-xs px-4 py-3.5">
+                      <p className="truncate text-slate-700">{p.caption || p.title || 'Tanpa caption'}</p>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-1.5">
+                        {(p.accounts ?? []).slice(0, 3).map((pa) => (
+                          <PlatformIcon key={pa.accountId} provider={pa.account?.provider ?? ''} size="h-4 w-4" />
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <Badge className={meta.className} dot={meta.dot}>{meta.label}</Badge>
+                    </td>
+                    <td className="px-4 py-3.5 text-slate-500">{formatDate(p.createdAt)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </Card>
   );
 }

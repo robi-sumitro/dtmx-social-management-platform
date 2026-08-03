@@ -162,6 +162,7 @@ export interface AutoReplyRule {
   aiPrompt?: string;
   enabled: boolean;
   createdAt?: string;
+  account?: SocialAccount | null;
 }
 
 export interface FeatureFlag {

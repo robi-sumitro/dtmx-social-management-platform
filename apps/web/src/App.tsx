@@ -22,12 +22,14 @@ import { AppShell } from '@/components/layout/AppShell';
 import { Dashboard } from '@/pages/app/Dashboard';
 import { Posts } from '@/pages/app/Posts';
 import { PostComposer } from '@/pages/app/PostComposer';
+import { PostDetail } from '@/pages/app/PostDetail';
 import { Inbox } from '@/pages/app/Inbox';
 import { Media } from '@/pages/app/Media';
 import { AIStudio } from '@/pages/app/AIStudio';
 import { Accounts } from '@/pages/app/Accounts';
 import { Billing } from '@/pages/app/Billing';
 import { Settings } from '@/pages/app/Settings';
+import { AutoReplies } from '@/pages/app/AutoReplies';
 
 const Admin = lazy(() => import('@/pages/app/admin/Admin').then((m) => ({ default: m.Admin })));
 
@@ -83,9 +85,11 @@ export function App() {
                   <Route path="" element={<Dashboard />} />
                   <Route path="posts" element={<Posts />} />
                   <Route path="posts/new" element={<PostComposer />} />
+                  <Route path="posts/:id" element={<PostDetail />} />
                   <Route path="inbox" element={<Inbox />} />
                   <Route path="media" element={<Media />} />
                   <Route path="ai" element={<AIStudio />} />
+                  <Route path="auto-replies" element={<AutoReplies />} />
                   <Route path="accounts" element={<Accounts />} />
                   <Route path="billing" element={<Billing />} />
                   <Route path="settings" element={<Settings />} />

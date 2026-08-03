@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { User as UserIcon, Lock, KeyRound, Camera, LogOut, Save } from 'lucide-react';
+import { User as UserIcon, Lock, KeyRound, Camera, LogOut, Save, ShieldCheck, Facebook, Check, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, mediaUrl } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -12,12 +12,21 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/Toast';
 import { useNavigate } from 'react-router-dom';
+import { useFetch } from '@/lib/useApi';
+
+interface OAuthConfig {
+  appBaseUrl: string;
+  frontendUrl: string;
+  google: { configured: boolean; callbackUrl: string };
+  facebook: { configured: boolean; callbackUrl: string };
+}
 
 export function Settings() {
   const { user, updateUser, logout, refreshProfile } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
   const avatarRef = useRef<HTMLInputElement>(null);
+  const oauth = useFetch<OAuthConfig>(() => api.get('/auth/callback-urls'));
 
   const [profile, setProfile] = useState({ fullName: user?.fullName ?? '', username: user?.username ?? '' });
   const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
@@ -173,6 +182,45 @@ export function Settings() {
               Ganti Password
             </Button>
           </div>
+        </CardBody>
+      </Card>
+
+      <Card className="mb-6">
+        <CardHeader icon={<ShieldCheck className="h-4 w-4" />} title="Metode Masuk (OAuth)" description="Status konfigurasi login pihak ketiga pada platform." />
+        <CardBody className="space-y-3">
+          {[
+            { key: 'google', label: 'Google', provider: 'Google' },
+            { key: 'facebook', label: 'Facebook', provider: 'Facebook' },
+          ].map((p) => {
+            const cfg = oauth.data?.[p.key as keyof OAuthConfig];
+            const configured = typeof cfg === 'object' && cfg !== null && (cfg as { configured?: boolean }).configured;
+            return (
+              <div key={p.key} className="flex items-center gap-3 rounded-xl border border-slate-100 p-4">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100">
+                  {p.key === 'google' ? <KeyRound className="h-5 w-5" /> : <Facebook className="h-5 w-5 text-[#1877F2]" />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-slate-800">Login dengan {p.label}</p>
+                  <p className="truncate text-xs text-slate-400">
+                    {typeof cfg === 'object' && cfg !== null && (cfg as { callbackUrl?: string }).callbackUrl
+                      ? (cfg as { callbackUrl: string }).callbackUrl
+                      : 'Status tidak tersedia'}
+                  </p>
+                </div>
+                <Badge className={configured ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : 'bg-slate-100 text-slate-500 ring-slate-200'}>
+                  {configured ? (
+                    <span className="flex items-center gap-1"><Check className="h-3 w-3" /> Aktif</span>
+                  ) : (
+                    <span className="flex items-center gap-1"><X className="h-3 w-3" /> Belum dikonfigurasi</span>
+                  )}
+                </Badge>
+              </div>
+            );
+          })}
+          <p className="flex items-center gap-2 text-xs text-slate-400">
+            <KeyRound className="h-3.5 w-3.5" />
+            URL callback didaftarkan di dashboard Google / Meta. Lihat README untuk panduan lengkap.
+          </p>
         </CardBody>
       </Card>
 

@@ -83,6 +83,46 @@ export class PostsService {
     return post;
   }
 
+  async update(userId: string, id: string, input: CreatePostInput) {
+    const existing = await this.prisma.post.findFirst({
+      where: { id, userId },
+      include: { accounts: true, media: true },
+    });
+    if (!existing) throw new NotFoundException('Postingan tidak ditemukan');
+
+    const accountIds = input.accountIds ?? existing.accounts?.map((a) => a.accountId) ?? [];
+    const mediaIds = input.mediaIds ?? existing.media?.map((m) => m.mediaId) ?? [];
+
+    const post = await this.prisma.$transaction(async (tx) => {
+      await tx.postAccount.deleteMany({ where: { postId: id } });
+      await tx.postMedia.deleteMany({ where: { postId: id } });
+      return tx.post.update({
+        where: { id },
+        data: {
+          title: input.title ?? existing.title,
+          caption: input.caption ?? existing.caption,
+          hashtags: input.hashtags ?? existing.hashtags,
+          postType: input.postType ?? existing.postType,
+          platform: await this.derivePlatform(accountIds),
+          scheduledAt: input.scheduledAt ? new Date(input.scheduledAt) : input.scheduledAt === null ? null : existing.scheduledAt,
+          allowRepost: input.allowRepost ?? existing.allowRepost,
+          overrides: input.overrides ?? existing.overrides,
+          accounts: { create: accountIds.map((accountId) => ({ accountId })) },
+          media: { create: mediaIds.map((mediaId, order) => ({ mediaId, order })) },
+        },
+        include: { accounts: { include: { account: true } }, media: { include: { media: true } } },
+      });
+    });
+
+    if (input.action === 'schedule') {
+      await this.schedule(post.id);
+    } else if (input.action === 'publish_now') {
+      await this.publishNow(post.id);
+    }
+
+    return post;
+  }
+
   private async derivePlatform(accountIds: string[]) {
     if (!accountIds || accountIds.length === 0) return undefined;
     const accounts = await this.prisma.socialAccount.findMany({

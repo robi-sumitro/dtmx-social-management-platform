@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Sparkles,
@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useFetch } from '@/lib/useApi';
 import { api, mediaUrl } from '@/lib/api';
-import type { SocialAccount, MediaFile } from '@/lib/types';
+import type { Post, SocialAccount, MediaFile } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { PlatformIcon } from '@/components/shared/PageHeader';
@@ -36,9 +36,16 @@ const POST_TYPES = [
 export function PostComposer() {
   const navigate = useNavigate();
   const toast = useToast();
+  const [searchParams] = useSearchParams();
+  const editId = searchParams.get('id') || undefined;
+  const isEditing = Boolean(editId);
 
   const { data: accounts } = useFetch<SocialAccount[]>(() => api.get('/social-accounts'));
   const { data: media } = useFetch<MediaFile[]>(() => api.get('/media'));
+  const { data: post } = useFetch<Post | null>(
+    () => (editId ? api.get<Post>(`/posts/${editId}`) : Promise.resolve(null)),
+    [editId],
+  );
 
   const [caption, setCaption] = useState('');
   const [hashtags, setHashtags] = useState('');
@@ -50,6 +57,16 @@ export function PostComposer() {
   const [busy, setBusy] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
+
+  useEffect(() => {
+    if (!post) return;
+    setCaption(post.caption ?? '');
+    setHashtags(post.hashtags ?? '');
+    setPostType(post.postType);
+    setAccountIds((post.accounts ?? []).map((pa) => pa.accountId));
+    setMediaIds((post.media ?? []).map((pm) => pm.mediaId));
+    setScheduledAt(post.scheduledAt ? post.scheduledAt.slice(0, 16) : '');
+  }, [post]);
 
   const activeAccounts = useMemo(() => (accounts ?? []).filter((a) => a.isActive), [accounts]);
   const mediaItems = media ?? [];
@@ -94,7 +111,7 @@ export function PostComposer() {
     }
     setBusy(true);
     try {
-      await api.post('/posts', {
+      const payload = {
         caption,
         hashtags,
         postType,
@@ -102,7 +119,12 @@ export function PostComposer() {
         mediaIds,
         scheduledAt: scheduledAt || undefined,
         action,
-      });
+      };
+      if (isEditing && editId) {
+        await api.patch(`/posts/${editId}`, payload);
+      } else {
+        await api.post('/posts', payload);
+      }
       toast.success(
         action === 'draft' ? 'Draft tersimpan' : action === 'schedule' ? 'Postingan terjadwal' : 'Postingan dipublikasikan',
         action === 'publish_now' ? 'Sedang dikirim ke platform.' : undefined,
@@ -123,8 +145,8 @@ export function PostComposer() {
           Kembali ke Postingan
         </Link>
         <PageHeader
-          title="Buat Postingan"
-          description="Tulis konten, pilih akun tujuan, dan jadwalkan penerbitan."
+          title={isEditing ? 'Edit Postingan' : 'Buat Postingan'}
+          description={isEditing ? 'Perbarui konten, akun tujuan, dan jadwal penerbitan.' : 'Tulis konten, pilih akun tujuan, dan jadwalkan penerbitan.'}
         />
       </div>
 

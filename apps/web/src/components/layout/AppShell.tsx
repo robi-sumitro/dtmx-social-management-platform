@@ -15,6 +15,7 @@ import {
   X,
   ChevronRight,
   Zap,
+  Bot,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -26,6 +27,7 @@ const NAV = [
   { to: '/app', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/app/posts', label: 'Postingan', icon: FileText },
   { to: '/app/inbox', label: 'Inbox', icon: Inbox },
+  { to: '/app/auto-replies', label: 'Auto Reply', icon: Bot },
   { to: '/app/media', label: 'Media Library', icon: ImageIcon },
   { to: '/app/ai', label: 'AI Studio', icon: Sparkles, badge: 'AI' },
   { to: '/app/accounts', label: 'Akun Sosial', icon: Share2 },

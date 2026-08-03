@@ -13,6 +13,12 @@ export class PaymentsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Get()
+  async list(@CurrentUser('id') userId: string) {
+    return this.payments.listMine(userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get(':id')
   async one(@Param('id') id: string, @CurrentUser('id') userId: string) {
     return this.payments.getPayment(id, userId);

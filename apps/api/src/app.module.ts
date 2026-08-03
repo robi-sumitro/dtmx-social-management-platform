@@ -12,6 +12,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { AIModule } from './ai/ai.module';
 import { InboxModule } from './inbox/inbox.module';
+import { AutoRepliesModule } from './auto-replies/auto-replies.module';
 import { SocialAccountsModule } from './social-accounts/social-accounts.module';
 import { PostsModule } from './posts/posts.module';
 import { MediaModule } from './media/media.module';
@@ -62,6 +63,7 @@ import { AppController } from './app.controller';
     SubscriptionsModule,
     AIModule,
     InboxModule,
+    AutoRepliesModule,
     SocialAccountsModule,
     PostsModule,
     MediaModule,

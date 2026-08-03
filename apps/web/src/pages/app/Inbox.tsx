@@ -36,6 +36,7 @@ export function Inbox() {
   const [selected, setSelected] = useState<InboxItem | null>(null);
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
+  const [autoReplying, setAutoReplying] = useState(false);
 
   const query = useFetch<InboxListResponse>(
     () => api.get(`/inbox?status=${status === 'all' ? '' : status}&accountId=${accountId === 'all' ? '' : accountId}&limit=100`),
@@ -73,6 +74,21 @@ export function Inbox() {
     await api.patch(`/inbox/${item.id}/status`, { status: nextStatus });
     toast.success('Status diperbarui');
     query.refetch();
+  };
+
+  const runAutoReply = async () => {
+    if (!selected) return;
+    setAutoReplying(true);
+    try {
+      const res = await api.post<{ replyContent: string }>(`/inbox/${selected.id}/auto-reply`);
+      toast.success('Balasan otomatis terkirim', res.replyContent ? 'Lihat hasilnya di bawah.' : undefined);
+      setReplyText(res.replyContent ?? '');
+      query.refetch();
+    } catch (err) {
+      toast.error('Gagal auto reply', err instanceof Error ? err.message : 'Terjadi kesalahan');
+    } finally {
+      setAutoReplying(false);
+    }
   };
 
   const items = query.data?.items ?? [];
@@ -232,6 +248,15 @@ export function Inbox() {
                   className="resize-none"
                 />
                 <div className="mt-3 flex flex-wrap items-center justify-end gap-2.5">
+                  <Button
+                    variant="ghost"
+                    onClick={() => void runAutoReply()}
+                    loading={autoReplying}
+                    icon={!autoReplying ? <Bot className="h-4 w-4 text-brand-500" /> : undefined}
+                    title="Gunakan aturan auto reply"
+                  >
+                    <span className="flex items-center gap-1">Auto Reply</span>
+                  </Button>
                   <Button
                     variant="secondary"
                     onClick={() => void sendReply(true)}

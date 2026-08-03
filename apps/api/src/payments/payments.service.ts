@@ -36,6 +36,14 @@ export class PaymentsService {
     });
   }
 
+  async listMine(userId: string) {
+    return this.prisma.payment.findMany({
+      where: { userId },
+      include: { plan: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async initiatePayment(userId: string, plan: any, method: string) {
     // Free plan always activates immediately
     if (plan.price === 0) {

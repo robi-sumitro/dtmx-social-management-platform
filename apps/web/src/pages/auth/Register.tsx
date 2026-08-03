@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { Mail, Lock, User, AtSign, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { AuthLayout } from './AuthLayout';
 import { Input } from '@/components/ui/Field';
@@ -9,7 +9,7 @@ import { useToast } from '@/components/ui/Toast';
 import { oauthUrl } from '@/lib/api';
 
 export function Register() {
-  const { register } = useAuth();
+  const { register, isAuthenticated, loading: authLoading } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -17,6 +17,9 @@ export function Register() {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+
+  if (authLoading) return null;
+  if (isAuthenticated) return <Navigate to="/app" replace />;
 
   const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));

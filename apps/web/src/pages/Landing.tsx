@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   Sparkles,
   CalendarClock,
@@ -21,6 +21,17 @@ import { api } from '@/lib/api';
 import type { Plan } from '@/lib/types';
 import { formatCurrency } from '@/lib/utils';
 import { Logo } from '@/components/ui/Logo';
+import { Avatar } from '@/components/ui/Avatar';
+import { useAuth } from '@/lib/auth';
+
+function scrollToSection(id: string, navigate: ReturnType<typeof useNavigate>) {
+  const el = document.getElementById(id);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else {
+    navigate(`/?to=${id}`);
+  }
+}
 
 const FALLBACK_PLANS: Plan[] = [
   { id: 'free', name: 'Free', slug: 'free', description: 'Mulai mengelola 1 akun sosial kamu', price: 0, currency: 'USD', billingPeriodDays: 30, maxAccounts: 1, maxPostsPerMonth: 10, aiPerMonth: 20, isActive: true },
@@ -91,31 +102,50 @@ const FAQS = [
 
 export function Nav() {
   const [open, setOpen] = useState(false);
+  const navigate = useNavigate();
+  const { isAuthenticated, user } = useAuth();
   const links = [
-    { href: '/#fitur', label: 'Fitur' },
-    { href: '/#cara-kerja', label: 'Cara Kerja' },
-    { href: '/#harga', label: 'Harga' },
-    { href: '/#faq', label: 'FAQ' },
+    { id: 'fitur', label: 'Fitur' },
+    { id: 'cara-kerja', label: 'Cara Kerja' },
+    { id: 'harga', label: 'Harga' },
+    { id: 'faq', label: 'FAQ' },
   ];
+  const go = (id: string) => {
+    setOpen(false);
+    scrollToSection(id, navigate);
+  };
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-slate-200/60 bg-white/70 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Logo />
         <nav className="hidden items-center gap-1 md:flex">
           {links.map((l) => (
-            <a key={l.href} href={l.href} className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
+            <a key={l.id} href={`/#${l.id}`} onClick={(e) => { e.preventDefault(); go(l.id); }} className="rounded-lg px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
               {l.label}
             </a>
           ))}
         </nav>
         <div className="hidden items-center gap-2.5 md:flex">
-          <Link to="/auth/login" className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
-            Masuk
-          </Link>
-          <Link to="/auth/register" className="inline-flex items-center gap-1.5 rounded-xl bg-brand-gradient px-4 py-2 text-sm font-semibold text-white shadow-glow transition hover:brightness-110">
-            Mulai Gratis
-            <ArrowRight className="h-4 w-4" />
-          </Link>
+          {isAuthenticated ? (
+            <>
+              <Link to="/app" className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
+                Buka Dashboard
+              </Link>
+              <Link to="/app" className="rounded-full ring-1 ring-slate-200 transition hover:ring-brand-300" aria-label="Dashboard">
+                <Avatar name={user?.fullName || user?.username || user?.email} src={user?.avatar} size="sm" />
+              </Link>
+            </>
+          ) : (
+            <>
+              <Link to="/auth/login" className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
+                Masuk
+              </Link>
+              <Link to="/auth/register" className="inline-flex items-center gap-1.5 rounded-xl bg-brand-gradient px-4 py-2 text-sm font-semibold text-white shadow-glow transition hover:brightness-110">
+                Mulai Gratis
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </>
+          )}
         </div>
         <button className="rounded-lg p-2 text-slate-600 md:hidden" onClick={() => setOpen((v) => !v)} aria-label="Menu">
           {open ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -124,17 +154,25 @@ export function Nav() {
       {open && (
         <div className="border-t border-slate-100 bg-white px-4 py-3 md:hidden">
           {links.map((l) => (
-            <a key={l.href} href={l.href} onClick={() => setOpen(false)} className="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
+            <a key={l.id} href={`/#${l.id}`} onClick={(e) => { e.preventDefault(); go(l.id); }} className="block rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50">
               {l.label}
             </a>
           ))}
           <div className="mt-3 flex flex-col gap-2 border-t border-slate-100 pt-3">
-            <Link to="/auth/login" className="rounded-xl px-4 py-2.5 text-center text-sm font-semibold text-slate-700 ring-1 ring-slate-200">
-              Masuk
-            </Link>
-            <Link to="/auth/register" className="rounded-xl bg-brand-gradient px-4 py-2.5 text-center text-sm font-semibold text-white">
-              Mulai Gratis
-            </Link>
+            {isAuthenticated ? (
+              <Link to="/app" className="rounded-xl bg-brand-gradient px-4 py-2.5 text-center text-sm font-semibold text-white">
+                Buka Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link to="/auth/login" className="rounded-xl px-4 py-2.5 text-center text-sm font-semibold text-slate-700 ring-1 ring-slate-200">
+                  Masuk
+                </Link>
+                <Link to="/auth/register" className="rounded-xl bg-brand-gradient px-4 py-2.5 text-center text-sm font-semibold text-white">
+                  Mulai Gratis
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -461,6 +499,7 @@ function CTA() {
 }
 
 export function Footer() {
+  const navigate = useNavigate();
   return (
     <footer className="border-t border-slate-200 bg-white">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
@@ -472,9 +511,9 @@ export function Footer() {
           <div>
             <h4 className="text-sm font-semibold text-slate-900">Produk</h4>
             <ul className="mt-4 space-y-2.5 text-sm text-slate-500">
-              <li><a href="/#fitur" className="hover:text-brand-600">Fitur</a></li>
-              <li><a href="/#harga" className="hover:text-brand-600">Harga</a></li>
-              <li><a href="/#cara-kerja" className="hover:text-brand-600">Cara Kerja</a></li>
+              <li><a href="/#fitur" onClick={(e) => { e.preventDefault(); scrollToSection('fitur', navigate); }} className="hover:text-brand-600">Fitur</a></li>
+              <li><a href="/#harga" onClick={(e) => { e.preventDefault(); scrollToSection('harga', navigate); }} className="hover:text-brand-600">Harga</a></li>
+              <li><a href="/#cara-kerja" onClick={(e) => { e.preventDefault(); scrollToSection('cara-kerja', navigate); }} className="hover:text-brand-600">Cara Kerja</a></li>
             </ul>
           </div>
           <div>
@@ -488,7 +527,7 @@ export function Footer() {
           <div>
             <h4 className="text-sm font-semibold text-slate-900">Bantuan</h4>
             <ul className="mt-4 space-y-2.5 text-sm text-slate-500">
-              <li><a href="/#faq" className="hover:text-brand-600">FAQ</a></li>
+              <li><a href="/#faq" onClick={(e) => { e.preventDefault(); scrollToSection('faq', navigate); }} className="hover:text-brand-600">FAQ</a></li>
               <li><Link to="/dokumentasi" className="hover:text-brand-600">Dokumentasi</Link></li>
               <li><Link to="/hubungi-kami" className="hover:text-brand-600">Hubungi Kami</Link></li>
             </ul>
@@ -508,6 +547,18 @@ export function Footer() {
 }
 
 export function Landing() {
+  const location = useLocation();
+  useEffect(() => {
+    const to = new URLSearchParams(location.search).get('to');
+    if (to) {
+      const el = document.getElementById(to);
+      if (el) {
+        const t = setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+        return () => clearTimeout(t);
+      }
+    }
+  }, [location.search]);
+
   return (
     <div className="bg-white">
       <Nav />

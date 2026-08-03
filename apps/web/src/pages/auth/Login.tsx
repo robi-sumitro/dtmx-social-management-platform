@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { AuthLayout } from './AuthLayout';
 import { Input } from '@/components/ui/Field';
@@ -9,7 +9,7 @@ import { useToast } from '@/components/ui/Toast';
 import { oauthUrl } from '@/lib/api';
 
 export function Login() {
-  const { login } = useAuth();
+  const { login, isAuthenticated, loading: authLoading } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -20,6 +20,9 @@ export function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+
+  if (authLoading) return null;
+  if (isAuthenticated) return <Navigate to={from.startsWith('/app') ? from : '/app'} replace />;
 
   const validate = () => {
     const next: Record<string, string> = {};

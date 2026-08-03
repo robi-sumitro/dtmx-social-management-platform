@@ -123,6 +123,7 @@ Selain login, **menghubungkan akun sosial** (Halaman Facebook + Instagram Busine
 | --- | --- | --- |
 | Google (YouTube) | `GET /api/social-accounts/auth/youtube/url` | `{API_URL}/api/social-accounts/auth/youtube/callback` |
 | Facebook (Pages + IG) | `GET /api/social-accounts/auth/facebook/url` | `{API_URL}/api/social-accounts/auth/facebook/callback` |
+| TikTok (Content Posting API) | `GET /api/social-accounts/auth/tiktok/url` | `{API_URL}/api/social-accounts/auth/tiktok/callback` |
 
 Default lokal (dengan `API_URL=http://localhost:3000`):
 
@@ -130,6 +131,7 @@ Default lokal (dengan `API_URL=http://localhost:3000`):
 - Facebook login: `http://localhost:3000/api/auth/facebook/callback`
 - YouTube connect: `http://localhost:3000/api/social-accounts/auth/youtube/callback`
 - Facebook connect: `http://localhost:3000/api/social-accounts/auth/facebook/callback`
+- TikTok connect: `http://localhost:3000/api/social-accounts/auth/tiktok/callback`
 
 ### Di produksi (Railway)
 
@@ -141,7 +143,7 @@ Default lokal (dengan `API_URL=http://localhost:3000`):
 
 > Error `redirect_uri_mismatch` (400) terjadi saat URI yang dikirim ke Google tidak cocok dengan daftar **Authorized redirect URIs**. Pastikan string di console benar-benar identik dengan yang terkirim. Setelah login, browser akan diarahkan ke `{FRONTEND_URL}/auth/oauth/callback` (route SPA, tidak perlu didaftarkan di platform).
 
-> **Connect akun (OAuth):** Saat login via Google/Facebook, sistem **mengecek** apakah akun memiliki channel YouTube / halaman Facebook lalu menawarkan menghubungkannya. Proses connect ini meminta scope tambahan (Facebook `pages_show_list`, `pages_manage_posts`, `pages_read_engagement`; Google `youtube.readonly` + `youtube.upload`) dan menyimpan token halaman/channel untuk keperluan publish. **TikTok** tidak punya OAuth login/connect — token (scope `video.publish`) dimasukkan manual via `POST /social-accounts/connect`.
+> **Connect akun (OAuth):** Saat login via Google/Facebook, sistem **mengecek** apakah akun memiliki channel YouTube / halaman Facebook lalu menawarkan menghubungkannya. Semua platform dihubungkan via OAuth (scope TikTok: `user.info.basic` + `video.publish`; Facebook: `pages_show_list`, `pages_manage_posts`, `pages_read_engagement`; Google: `youtube.readonly` + `youtube.upload`) dan menyimpan token halaman/channel/akun untuk keperluan publish. Untuk TikTok, daftarkan **Client Key** & **Client Secret** di env `TIKTOK_CLIENT_KEY`/`TIKTOK_CLIENT_SECRET` serta aktifkan *Content Posting API* + scope `video.publish` di TikTok for Developers.
 
 ### Data awal (otomatis dibuat saat deploy)
 
@@ -207,11 +209,11 @@ Endpoint utama (prabu `apps/api/src/**`):
 POST /auth/register, /auth/login, /auth/google, /auth/facebook
 POST /auth/refresh
 GET  /users/me, PATCH /users/me
-GET  /social-accounts/auth/:provider/url (mulai OAuth connect; provider = facebook|youtube)
+GET  /social-accounts/auth/:provider/url (mulai OAuth connect; provider = facebook|youtube|tiktok)
 GET  /social-accounts/auth/:provider/callback (public, redirect ke /app/accounts)
-POST /social-accounts/connect (connect manual, mis. TikTok)
+POST /social-accounts/connect (connect manual via API — dipakai konsumen API)
 GET  /social-accounts
-PATCH /social-accounts/refresh (refresh token FB long-lived & YouTube)
+PATCH /social-accounts/refresh (refresh token FB long-lived, YouTube, & TikTok)
 POST /posts (buat & jadwalkan posting)
 GET  /inbox (komentar/DM)
 GET  /ai/status, POST /ai/generate (fitur AI)
@@ -224,7 +226,7 @@ GET  /admin/*
 GET  /flags, /health
 ```
 
-**Kuota akun (slot):** batas paket dihitung per **slot**, bukan per record. Satu Halaman Facebook + Instagram Business yang terhubung lewat OAuth dikelompokkan (kolom `parent_id`) dan hanya memakai **1 slot**. `PATCH /social-accounts/refresh` memperbarui token: Facebook memperpanjang user token long-lived lalu mengambil ulang page token, YouTube menukar refresh token (`access_type=offline`) menjadi access token baru.
+**Kuota akun (slot):** batas paket dihitung per **slot**, bukan per record. Satu Halaman Facebook + Instagram Business yang terhubung lewat OAuth dikelompokkan (kolom `parent_id`) dan hanya memakai **1 slot**. `PATCH /social-accounts/refresh` memperbarui token: Facebook memperpanjang user token long-lived lalu mengambil ulang page token, YouTube & TikTok menukar refresh token menjadi access token baru (TikTok me-rotate refresh token).
 
 Auth menggunakan JWT Bearer. Guard `RolesGuard` + `FeatureGuard` untuk kontrol akses & fitur.
 

@@ -180,7 +180,8 @@ export function DocsPage() {
         {
           heading: 'Akun & Pembayaran',
           list: [
-            'POST /api/social-accounts/connect — hubungkan akun sosial',
+            'GET /api/social-accounts — daftar akun terhubung',
+            'GET /api/social-accounts/auth/:provider/url — hubungkan akun via OAuth (facebook/youtube/tiktok)',
             'POST /api/subscriptions/subscribe — mulai langganan',
             'GET /api/payments/methods — daftar metode pembayaran',
             'GET /api/subscriptions/plans — daftar paket (publik)',

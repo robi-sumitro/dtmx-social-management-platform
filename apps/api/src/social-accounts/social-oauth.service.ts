@@ -10,6 +10,9 @@ const FB_DIALOG = 'https://www.facebook.com/v24.0/dialog/oauth';
 const GOOGLE_OAUTH = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN = 'https://oauth2.googleapis.com/token';
 const YOUTUBE_API = 'https://www.googleapis.com/youtube/v3';
+const TIKTOK_AUTH = 'https://www.tiktok.com/v2/auth/authorize/';
+const TIKTOK_TOKEN = 'https://open.tiktokapis.com/v2/oauth/token/';
+const TIKTOK_API = 'https://open.tiktokapis.com/v2';
 
 const CONNECT_SCOPES: Record<string, string> = {
   facebook: ['pages_show_list', 'pages_manage_posts', 'pages_read_engagement'].join(','),
@@ -17,12 +20,14 @@ const CONNECT_SCOPES: Record<string, string> = {
     'https://www.googleapis.com/auth/youtube.readonly',
     'https://www.googleapis.com/auth/youtube.upload',
   ].join(' '),
+  tiktok: 'user.info.basic,video.publish',
 };
 
 /**
  * OAuth "connect account" flow (independent from login).
  * - facebook (+instagram): page management scopes; callback imports FB pages and any linked IG business account.
  * - youtube: channel read/publish scopes; callback imports the YouTube channel.
+ * - tiktok: user info + video publish scopes; callback imports the TikTok account.
  */
 @Injectable()
 export class SocialOAuthService {
@@ -66,6 +71,19 @@ export class SocialOAuthService {
       return `${FB_DIALOG}?${params.toString()}`;
     }
 
+    if (provider === 'tiktok') {
+      const clientKey = this.config.get<string>('TIKTOK_CLIENT_KEY', '');
+      if (!clientKey) throw new BadRequestException('TikTok OAuth belum dikonfigurasi');
+      const params = new URLSearchParams({
+        client_key: clientKey,
+        response_type: 'code',
+        scope: CONNECT_SCOPES.tiktok,
+        redirect_uri: `${base}/api/social-accounts/auth/tiktok/callback`,
+        state,
+      });
+      return `${TIKTOK_AUTH}?${params.toString()}`;
+    }
+
     throw new BadRequestException('Provider tidak mendukung OAuth connect');
   }
 
@@ -81,6 +99,7 @@ export class SocialOAuthService {
 
     if (provider === 'youtube') return this.handleYoutube(userId, code, base);
     if (provider === 'facebook') return this.handleFacebook(userId, code, base);
+    if (provider === 'tiktok') return this.handleTiktok(userId, code, base);
     throw new BadRequestException('Provider tidak didukung');
   }
 
@@ -209,6 +228,54 @@ export class SocialOAuthService {
     });
 
     this.logger.log(`User ${userId} connected YouTube channel ${channel.id}`);
+    return `${getFrontendUrl(this.config)}/app/accounts?connected=1`;
+  }
+
+  private async handleTiktok(userId: string, code: string, base: string) {
+    const clientKey = this.config.get<string>('TIKTOK_CLIENT_KEY', '');
+    const clientSecret = this.config.get<string>('TIKTOK_CLIENT_SECRET', '');
+    const redirectUri = `${base}/api/social-accounts/auth/tiktok/callback`;
+
+    const { data: tok } = await axios.post(
+      TIKTOK_TOKEN,
+      new URLSearchParams({
+        client_key: clientKey,
+        client_secret: clientSecret,
+        code,
+        grant_type: 'authorization_code',
+        redirect_uri: redirectUri,
+      }).toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+    );
+    const accessToken = tok.access_token as string;
+    const refreshToken = tok.refresh_token as string | undefined;
+    if (!accessToken || !tok.open_id) {
+      throw new BadRequestException('TikTok menolak otorisasi. Silakan coba lagi.');
+    }
+
+    const { data: info } = await axios.get(`${TIKTOK_API}/user/info/`, {
+      params: { fields: 'open_id,avatar_url,display_name,follower_count' },
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const u = info?.data?.user;
+    const openId = u?.open_id || (tok.open_id as string);
+    if (!u) {
+      throw new BadRequestException('Gagal mengambil info akun TikTok');
+    }
+
+    await this.social.connect(userId, {
+      provider: 'tiktok',
+      accountType: 'tiktok_account',
+      accountName: u.display_name || 'Akun TikTok',
+      platformId: openId,
+      accessToken,
+      refreshToken,
+      avatarUrl: u.avatar_url,
+      followersCount: Number(u.follower_count) || 0,
+      tokenExpiresAt: new Date(Date.now() + (tok.expires_in || 86400) * 1000).toISOString(),
+    });
+
+    this.logger.log(`User ${userId} connected TikTok account ${openId}`);
     return `${getFrontendUrl(this.config)}/app/accounts?connected=1`;
   }
 }

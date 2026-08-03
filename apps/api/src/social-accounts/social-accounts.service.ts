@@ -113,6 +113,8 @@ export class SocialAccountsService {
           await this.refreshYoutube(acc);
         } else if (acc.provider === 'facebook') {
           await this.refreshFacebook(acc);
+        } else if (acc.provider === 'tiktok') {
+          await this.refreshTiktok(acc);
         }
         results.push({ id: acc.id, accountName: acc.accountName, ok: true });
       } catch (err) {
@@ -211,6 +213,35 @@ export class SocialAccountsService {
     await this.prisma.socialAccount.updateMany({
       where: { parentId: acc.id, isActive: true },
       data: { accessToken: pageToken, lastSyncAt: new Date() },
+    });
+  }
+
+  private async refreshTiktok(acc: {
+    id: string; provider: string; refreshToken: string | null;
+  }): Promise<void> {
+    const refreshToken = acc.refreshToken;
+    if (!refreshToken) throw new BadRequestException('Tidak ada refresh token (hubungkan ulang via OAuth)');
+    const { data } = await axios.post(
+      'https://open.tiktokapis.com/v2/oauth/token/',
+      new URLSearchParams({
+        client_key: this.config.get<string>('TIKTOK_CLIENT_KEY', ''),
+        client_secret: this.config.get<string>('TIKTOK_CLIENT_SECRET', ''),
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      }).toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+    );
+    const accessToken = data.access_token as string | undefined;
+    if (!accessToken) throw new BadRequestException('TikTok menolak refresh token');
+    await this.prisma.socialAccount.update({
+      where: { id: acc.id },
+      data: {
+        accessToken,
+        // TikTok rotates the refresh token — always use the newly returned one.
+        refreshToken: data.refresh_token || refreshToken,
+        tokenIssuedAt: new Date(),
+        tokenExpiresAt: new Date(Date.now() + (data.expires_in || 86400) * 1000),
+      },
     });
   }
 }

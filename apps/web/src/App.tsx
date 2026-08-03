@@ -77,7 +77,7 @@ export function App() {
         <Route path="/auth/oauth/callback" element={<OAuthCallback />} />
 
         <Route
-          path="/app"
+          path="/app/*"
           element={
             <Protected>
               <AppShell>

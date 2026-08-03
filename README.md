@@ -134,22 +134,36 @@ Default lokal (dengan `API_URL=http://localhost:3000`):
 
 > **TikTok & YouTube tidak memakai OAuth login** — keduanya hanya provider publish konten. Token (scope `video.publish` untuk TikTok, upload YouTube) dimasukkan manual via `POST /social-accounts/connect`, jadi tidak ada callback URL yang perlu didaftarkan.
 
-### Akun admin pertama kali
+### Data awal (otomatis dibuat saat deploy)
 
-Seed otomatis membuat akun admin (idempoten) dan dijalankan **pada saat deploy/start pertama** (`prisma:deploy` → `prisma:seed:prod` → `start:prod`) sehingga akun admin selalu tersedia setelah app pertama kali dibangun. Untuk development, jalankan manual:
+Seed berjalan idempoten (upsert) dan dieksekusi **pada setiap deploy/start** (`prisma:deploy` → `prisma:seed:prod` → `start:prod`), sehingga data awal selalu tersedia tanpa langkah manual:
+
+- **Plans** (Free / Basic / Pro / Enterprise)
+- **Feature Flags** (inbox, AI replies, media upload, scheduling, publishing)
+- **Payment settings** (info rekening manual)
+- **AI settings** — `ai_settings` berisi provider aktif + API key/model tiap provider; tabelnya otomatis dibuat oleh migrasi (`prisma migrate deploy`) dan datanya di-seed, sama seperti akun admin
+- **Akun admin pertama** (idempoten) + subscription **Pro** aktif agar kuota AI tersedia
+
+Untuk development, jalankan manual:
 
 ```bash
 pnpm db:seed
 ```
 
-Kredensial default dapat diubah lewat env:
+Kredensial admin default dapat diubah lewat env:
 
 ```bash
 SEED_ADMIN_EMAIL=admin@dtmx.app
 SEED_ADMIN_PASSWORD=admin123456
 ```
 
-Admin ini juga mendapat subscription **Pro** (aktif) agar kuota AI tersedia untuk pengujian.
+### Konfigurasi AI (Admin Panel)
+
+Provider AI **dikelola dari Admin Panel → tab "AI Providers"** (bukan lewat env). Data tersimpan di tabel `ai_settings`:
+
+- Pilih **provider aktif** (OpenAI / Anthropic / Gemini) yang dipakai AI Studio, auto-reply, dll.
+- Isi **API key** dan **model** per provider. API key ditampilkan tersamar (masked) dan hanya disimpan di server.
+- Env `AI_PROVIDER`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, dll. hanya menjadi **fallback** jika nilai belum diatur lewat dashboard admin.
 
 ## Environment (variabel penting)
 
@@ -158,7 +172,7 @@ Lihat `apps/api/.env.example` untuk daftar lengkap. Bagian utama:
 - `DATABASE_URL` — koneksi PostgreSQL (Prisma)
 - `REDIS_HOST` / `REDIS_PORT` — Redis untuk BullMQ queue
 - `JWT_SECRET` / `JWT_REFRESH_SECRET` — token secret auth
-- `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` — provider AI
+- `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` — fallback provider AI (kelola utama lewat Admin Panel → AI Providers)
 - `STRIPE_SECRET_KEY` / `TRIPAY_API_KEY` / `MIDTRANS_SERVER_KEY` — payment
 - `GOOGLE_CLIENT_ID` / `FACEBOOK_APP_ID` — OAuth login
 
@@ -171,6 +185,9 @@ Lihat `apps/api/.env.example` untuk daftar lengkap. Bagian utama:
 - **InboxItem** — komentar & DM
 - **AutoReplyRule** — balasan otomatis (rule-based / AI)
 - **AiUsage** — pencatatan pemakaian AI (token)
+- **AiSetting** — konfigurasi AI dari admin (provider aktif, API key, model)
+- **PaymentSetting** — info pembayaran manual (rekening tujuan)
+- **Notification** — notifikasi in-app
 - **FeatureFlag** — tombol fitur per admin (AI replies, inbox, upload, dsb)
 
 ## API

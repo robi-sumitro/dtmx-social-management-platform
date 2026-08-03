@@ -94,6 +94,22 @@ export class SocialOAuthService {
     });
     const userToken = tok.access_token as string;
 
+    // Exchange the short-lived user token for a long-lived one (~60 days).
+    let longLived = userToken;
+    try {
+      const { data: ext } = await axios.get(`${FB_GRAPH}/oauth/access_token`, {
+        params: {
+          grant_type: 'fb_exchange_token',
+          client_id: clientId,
+          client_secret: clientSecret,
+          fb_exchange_token: userToken,
+        },
+      });
+      if (ext.access_token) longLived = ext.access_token;
+    } catch (err) {
+      this.logger.warn(`Long-lived token exchange failed, falling back: ${(err as Error).message}`);
+    }
+
     const { data: res } = await axios.get(`${FB_GRAPH}/me/accounts`, {
       params: {
         access_token: userToken,
@@ -103,37 +119,51 @@ export class SocialOAuthService {
     const pages: any[] = res?.data ?? [];
 
     let connected = 0;
+    const errors: string[] = [];
     for (const page of pages) {
-      const pageToken = page.access_token || userToken;
-      await this.social.connect(userId, {
-        provider: 'facebook',
-        accountType: 'facebook_page',
-        accountName: page.name,
-        platformId: page.id,
-        accessToken: pageToken,
-        avatarUrl: page.picture?.data?.url,
-        followersCount: page.fan_count || 0,
-      });
-      connected += 1;
-
-      const ig = page.instagram_business_account;
-      if (ig?.id) {
-        await this.social.connect(userId, {
-          provider: 'instagram',
-          accountType: 'instagram',
-          accountName: ig.username || 'Instagram',
-          platformId: ig.id,
-          instagramId: ig.id,
+      const pageToken = page.access_token || longLived;
+      try {
+        const saved = await this.social.connect(userId, {
+          provider: 'facebook',
+          accountType: 'facebook_page',
+          accountName: page.name,
+          platformId: page.id,
           accessToken: pageToken,
-          avatarUrl: ig.profile_picture_url,
+          refreshToken: longLived,
+          avatarUrl: page.picture?.data?.url,
+          followersCount: page.fan_count || 0,
+          tokenExpiresAt: new Date(Date.now() + 60 * 24 * 3600 * 1000).toISOString(),
         });
         connected += 1;
+
+        const ig = page.instagram_business_account;
+        if (ig?.id) {
+          // Linked IG business counts as part of the same slot (parentId = page).
+          await this.social.connect(userId, {
+            provider: 'instagram',
+            accountType: 'instagram',
+            accountName: ig.username || 'Instagram',
+            platformId: ig.id,
+            instagramId: ig.id,
+            accessToken: pageToken,
+            refreshToken: longLived,
+            avatarUrl: ig.profile_picture_url,
+            parentId: saved.id,
+          });
+          connected += 1;
+        }
+      } catch (err) {
+        this.logger.warn(`Failed to connect page ${page.id}: ${(err as Error).message}`);
+        errors.push((err as Error).message);
       }
     }
 
     this.logger.log(`User ${userId} connected ${connected} FB/IG accounts`);
     if (connected === 0) {
-      return `${getFrontendUrl(this.config)}/app/accounts?error=${encodeURIComponent('Tidak ada halaman Facebook yang bisa dihubungkan pada akun ini.')}`;
+      return `${getFrontendUrl(this.config)}/app/accounts?error=${encodeURIComponent(errors[0] || 'Tidak ada halaman Facebook yang bisa dihubungkan pada akun ini.')}`;
+    }
+    if (errors.length > 0) {
+      return `${getFrontendUrl(this.config)}/app/accounts?connected=${connected}&error=${encodeURIComponent(errors[0])}`;
     }
     return `${getFrontendUrl(this.config)}/app/accounts?connected=${connected}`;
   }
@@ -155,6 +185,7 @@ export class SocialOAuthService {
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
     );
     const accessToken = tok.access_token as string;
+    const refreshToken = tok.refresh_token as string | undefined;
 
     const { data: ch } = await axios.get(`${YOUTUBE_API}/channels`, {
       params: { part: 'snippet,statistics', mine: true },
@@ -171,8 +202,10 @@ export class SocialOAuthService {
       accountName: channel.snippet?.title || 'YouTube Channel',
       platformId: channel.id,
       accessToken,
+      refreshToken,
       avatarUrl: channel.snippet?.thumbnails?.default?.url,
       followersCount: Number(channel.statistics?.subscriberCount) || 0,
+      tokenExpiresAt: new Date(Date.now() + 3600 * 1000).toISOString(),
     });
 
     this.logger.log(`User ${userId} connected YouTube channel ${channel.id}`);

@@ -207,8 +207,11 @@ Endpoint utama (prabu `apps/api/src/**`):
 POST /auth/register, /auth/login, /auth/google, /auth/facebook
 POST /auth/refresh
 GET  /users/me, PATCH /users/me
-POST /social-accounts/connect (connect akun platform)
+GET  /social-accounts/auth/:provider/url (mulai OAuth connect; provider = facebook|youtube)
+GET  /social-accounts/auth/:provider/callback (public, redirect ke /app/accounts)
+POST /social-accounts/connect (connect manual, mis. TikTok)
 GET  /social-accounts
+PATCH /social-accounts/refresh (refresh token FB long-lived & YouTube)
 POST /posts (buat & jadwalkan posting)
 GET  /inbox (komentar/DM)
 GET  /ai/status, POST /ai/generate (fitur AI)
@@ -220,6 +223,8 @@ POST /subscriptions/:id/proof
 GET  /admin/*
 GET  /flags, /health
 ```
+
+**Kuota akun (slot):** batas paket dihitung per **slot**, bukan per record. Satu Halaman Facebook + Instagram Business yang terhubung lewat OAuth dikelompokkan (kolom `parent_id`) dan hanya memakai **1 slot**. `PATCH /social-accounts/refresh` memperbarui token: Facebook memperpanjang user token long-lived lalu mengambil ulang page token, YouTube menukar refresh token (`access_type=offline`) menjadi access token baru.
 
 Auth menggunakan JWT Bearer. Guard `RolesGuard` + `FeatureGuard` untuk kontrol akses & fitur.
 

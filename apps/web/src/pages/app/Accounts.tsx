@@ -55,7 +55,7 @@ export function Accounts() {
   const usage = useFetch<UsageResponse>(() => api.get('/subscriptions/usage'));
 
   const accounts = data ?? [];
-  const activeCount = accounts.filter((a) => a.isActive).length;
+  const activeCount = accounts.filter((a) => a.isActive && !a.parentId).length;
   const limit = usage.data?.limits.accounts ?? 1;
   const canConnect = activeCount < limit;
 
@@ -75,7 +75,8 @@ export function Accounts() {
     const error = params.get('error');
     if (connected) {
       toast.success('Akun terhubung', `${connected} akun berhasil dihubungkan.`);
-    } else if (error) {
+    }
+    if (error) {
       toast.error('Gagal menghubungkan', error);
     }
     if (connected || error) {
@@ -147,8 +148,12 @@ export function Accounts() {
   const refreshTokens = async () => {
     setRefreshing(true);
     try {
-      await api.patch('/social-accounts/refresh');
-      toast.success('Token disegarkan', 'Semua akun telah disinkronkan.');
+      const res = await api.patch<{ refreshed: number; failed: number }>('/social-accounts/refresh');
+      if (res.failed > 0) {
+        toast.warning('Sebagian gagal disegarkan', `${res.refreshed} berhasil, ${res.failed} gagal. Hubungkan ulang akun yang gagal.`);
+      } else {
+        toast.success('Token disegarkan', 'Semua token berhasil diperbarui.');
+      }
       refetch();
     } catch (err) {
       toast.error('Gagal menyegarkan', err instanceof Error ? err.message : 'Terjadi kesalahan');
@@ -182,9 +187,9 @@ export function Accounts() {
             </span>
             <div>
               <p className="text-sm font-semibold text-slate-800">
-                {activeCount} dari {limit} akun terhubung
+                {activeCount} dari {limit} slot akun terhubung
               </p>
-              <p className="text-xs text-slate-400">Sesuai paket kamu saat ini</p>
+              <p className="text-xs text-slate-400">Halaman Facebook + Instagram Business terhitung 1 slot</p>
             </div>
           </div>
           {!canConnect && (
@@ -244,6 +249,12 @@ export function Accounts() {
               {acc.tokenExpiresAt && (
                 <p className="mt-3 text-xs text-slate-400">
                   Token kedaluwarsa: {formatDate(acc.tokenExpiresAt)}
+                </p>
+              )}
+
+              {acc.parentId && (
+                <p className="mt-3 text-[11px] font-medium text-brand-600">
+                  Terhubung via Halaman Facebook — tidak memakai slot tambahan
                 </p>
               )}
 

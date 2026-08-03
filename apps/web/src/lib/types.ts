@@ -79,6 +79,7 @@ export interface SocialAccount {
   instagramId?: string;
   avatarUrl?: string;
   followersCount?: number;
+  parentId?: string | null;
   isActive: boolean;
   lastSyncAt?: string;
   createdAt: string;

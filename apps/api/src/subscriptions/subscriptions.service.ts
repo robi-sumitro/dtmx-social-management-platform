@@ -42,7 +42,9 @@ export class SubscriptionsService {
     const sub = await this.getActive(userId);
     if (!sub) return { plan: null, accountsUsed: 0, postsUsed: 0, aiUsed: 0, limits: {} };
 
-    const accountsUsed = await this.prisma.socialAccount.count({ where: { userId, isActive: true } });
+    const accountsUsed = await this.prisma.socialAccount.count({
+      where: { userId, isActive: true, parentId: null },
+    });
     const since = new Date();
     since.setDate(since.getDate() - 30);
     const postsUsed = await this.prisma.post.count({

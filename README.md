@@ -5,7 +5,7 @@ AI-powered social media management platform (monorepo).
 ## Arsitektur
 
 - **apps/api** — Backend REST API (NestJS) + queue BullMQ + scheduler
-- **apps/web** — Frontend (belum diisi)
+- **apps/web** — Frontend SPA (Vite + React + TypeScript + Tailwind CSS)
 - **packages/config** — Konfigurasi bersama
 - **packages/shared** — Tipe/utilitas bersama
 - **.docker** — Infra lokal (PostgreSQL + Redis) via Docker Compose
@@ -73,6 +73,22 @@ API jalan di `http://localhost:3000` (lihat `PORT` di `.env`). Jalankan hanya AP
 ```bash
 pnpm --filter @dtmx/api start:dev
 ```
+
+### Frontend (apps/web)
+
+Jalankan dev server (port 4200, dengan proxy `/api` & `/uploads` ke API lokal):
+
+```bash
+pnpm --filter @dtmx/web dev
+```
+
+Build produksi:
+
+```bash
+pnpm --filter @dtmx/web build    # hasil di apps/web/dist
+```
+
+> Saat di-deploy (Railway), `apps/web/dist` otomatis di-serve oleh API (NestJS `ServeStaticModule`) sehingga domain root melayani SPA dengan fallback ke `index.html`. Pastikan `FRONTEND_URL` / `CORS_ORIGINS` di `.env` mengarah ke domain frontend (contoh: `http://localhost:4200`).
 
 Dashboard queue (BullMQ): default Bull Board via bull-board module.
 

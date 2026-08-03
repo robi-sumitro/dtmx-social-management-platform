@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from '../auth/email.service';
 import { PaymentsService } from '../payments/payments.service';
 import { FileStorageService } from '../media/media.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class SubscriptionsService {
@@ -12,6 +13,7 @@ export class SubscriptionsService {
     private readonly email: EmailService,
     private readonly payments: PaymentsService,
     private readonly storage: FileStorageService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async getPlans() {
@@ -139,6 +141,15 @@ export class SubscriptionsService {
     await this.prisma.payment.updateMany({
       where: { subscriptionId, status: { not: 'PAID' } },
       data: { status: 'PAID' },
+    });
+
+    await this.notifications.create({
+      userId: sub.userId,
+      type: 'subscription',
+      title: 'Langganan kamu aktif',
+      message: `Paket "${sub.plan.name}" sudah diaktifkan dan berlaku hingga ${active.expiresAt?.toDateString() ?? '-'}.`,
+      link: '/app/billing',
+      data: { planName: sub.plan.name, expiresAt: active.expiresAt },
     });
 
     await this.email.sendSubscriptionConfirmed(

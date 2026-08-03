@@ -5,6 +5,7 @@ import { getFrontendUrl } from '../common/app-url';
 import { StripeGateway, ManualGateway } from './gateways/payment.gateway';
 import { TripayGateway } from './gateways/payment.gateway';
 import { MidtransGateway, GatewayFactory } from './gateways/midtrans.gateway';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class PaymentsService {
@@ -12,6 +13,7 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly notifications: NotificationsService,
   ) {
     GatewayFactory.register(new ManualGateway());
     GatewayFactory.register(new StripeGateway(config));
@@ -27,6 +29,38 @@ export class PaymentsService {
   async setEnabledMethods(methods: string[]) {
     this.config.set('ENABLED_PAYMENT_METHODS', methods.join(','));
     return { enabledMethods: methods };
+  }
+
+  async manualInfo() {
+    const settings = await this.prisma.paymentSetting.findMany({
+      orderBy: { order: 'asc' },
+    });
+    const info = settings.reduce<Record<string, string>>((acc, s) => {
+      if (s.value) acc[s.key] = s.value;
+      return acc;
+    }, {});
+    return {
+      enabled: (await this.enabledMethods()).includes('manual'),
+      info,
+      fields: settings,
+    };
+  }
+
+  async listSettings() {
+    return this.prisma.paymentSetting.findMany({ orderBy: { order: 'asc' } });
+  }
+
+  async upsertSetting(key: string, data: { label?: string; value?: string; placeholder?: string; order?: number }) {
+    return this.prisma.paymentSetting.upsert({
+      where: { key },
+      update: data,
+      create: { key, label: data.label || key, value: data.value, placeholder: data.placeholder, order: data.order ?? 0 },
+    });
+  }
+
+  async deleteSetting(key: string) {
+    await this.prisma.paymentSetting.deleteMany({ where: { key } });
+    return { ok: true };
   }
 
   async getPayment(id: string, userId?: string) {
@@ -85,6 +119,14 @@ export class PaymentsService {
       await this.prisma.payment.update({
         where: { id: payment.id },
         data: { subscriptionId: pending.id },
+      });
+      const payer = await this.prisma.user.findUnique({ where: { id: userId } });
+      await this.notifications.createForAdmins({
+        type: 'payment',
+        title: 'Pembayaran manual baru menunggu konfirmasi',
+        message: `${payer?.email ?? userId} memesan paket "${plan.name}" dan menunggu verifikasi bukti transfer.`,
+        link: '/app/admin?tab=pending',
+        data: { subscriptionId: pending.id, paymentId: payment.id, planName: plan.name },
       });
       return { mode: 'manual', payment, subscriptionId: pending.id, action: 'upload_proof' };
     }

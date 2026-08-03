@@ -81,6 +81,9 @@ export class AuthService {
   }) {
     if (!profile.email) throw new UnauthorizedException('Platform tidak memberikan email');
     let user = await this.prisma.user.findUnique({ where: { email: profile.email } });
+    if (user && !user.isActive) {
+      throw new UnauthorizedException('Akun dinonaktifkan. Hubungi administrator.');
+    }
     if (!user) {
       user = await this.prisma.user.create({
         data: {

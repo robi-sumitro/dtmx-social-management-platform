@@ -20,6 +20,7 @@ import { AdminModule } from './admin/admin.module';
 import { QueueModule } from './queue/queue.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { PlatformsModule } from './platforms/platforms.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -68,6 +69,7 @@ import { AppController } from './app.controller';
     PostsModule,
     MediaModule,
     AdminModule,
+    NotificationsModule,
     QueueModule,
     SchedulerModule,
     PlatformsModule,

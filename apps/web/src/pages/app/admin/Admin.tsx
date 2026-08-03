@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   ShieldCheck,
   Users as UsersIcon,
@@ -18,8 +19,8 @@ import {
 } from 'lucide-react';
 import { useFetch } from '@/lib/useApi';
 import { api } from '@/lib/api';
-import type { AdminDashboard, User, Plan, PendingSubscription, FeatureFlag, Post } from '@/lib/types';
-import { formatDate, formatCurrency, subscriptionStatusMeta, postStatusMeta } from '@/lib/utils';
+import type { AdminDashboard, User, Plan, PendingSubscription, FeatureFlag, Post, PaymentSetting } from '@/lib/types';
+import { formatDate, formatDateTime, formatCurrency, subscriptionStatusMeta, postStatusMeta } from '@/lib/utils';
 import { PageHeader, StatCard, PlatformIcon } from '@/components/shared/PageHeader';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Tabs } from '@/components/ui/Tabs';
@@ -48,8 +49,21 @@ import { Avatar } from '@/components/ui/Avatar';
 type Tab = 'overview' | 'users' | 'plans' | 'pending' | 'flags' | 'payments' | 'posts';
 
 export function Admin() {
-  const [tab, setTab] = useState<Tab>('overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = (searchParams.get('tab') as Tab) || 'overview';
+  const [tab, setTab] = useState<Tab>(['overview', 'users', 'posts', 'plans', 'pending', 'flags', 'payments'].includes(tabParam) ? tabParam : 'overview');
   const stats = useFetch<AdminDashboard>(() => api.get('/admin/dashboard'));
+
+  useEffect(() => {
+    if (['overview', 'users', 'posts', 'plans', 'pending', 'flags', 'payments'].includes(tabParam)) {
+      setTab(tabParam);
+    }
+  }, [tabParam]);
+
+  const changeTab = (next: Tab) => {
+    setTab(next);
+    setSearchParams(next === 'overview' ? {} : { tab: next }, { replace: true });
+  };
 
   return (
     <div className="animate-fade-in">
@@ -61,7 +75,7 @@ export function Admin() {
       <Tabs
         className="mb-6 w-fit"
         value={tab}
-        onChange={setTab}
+        onChange={changeTab}
         items={[
           { value: 'overview', label: 'Ringkasan' },
           { value: 'users', label: 'Pengguna' },
@@ -158,6 +172,8 @@ function UsersAdmin() {
   const [form, setForm] = useState({ email: '', username: '', fullName: '', password: '', role: 'user' });
   const [saving, setSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const toggleUser = async (u: User) => {
     setBusyId(u.id);
@@ -169,6 +185,21 @@ function UsersAdmin() {
       toast.error('Gagal', err instanceof Error ? err.message : 'Terjadi kesalahan');
     } finally {
       setBusyId(null);
+    }
+  };
+
+  const deleteUser = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/admin/users/${deleteTarget.id}`);
+      toast.success('Pengguna dihapus', `${deleteTarget.email} berhasil dihapus beserta datanya.`);
+      setDeleteTarget(null);
+      refetch();
+    } catch (err) {
+      toast.error('Gagal menghapus', err instanceof Error ? err.message : 'Terjadi kesalahan');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -214,6 +245,7 @@ function UsersAdmin() {
               <tr className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-400">
                 <th className="px-6 py-3">Pengguna</th>
                 <th className="px-4 py-3">Role</th>
+                <th className="px-4 py-3">Paket</th>
                 <th className="px-4 py-3">Terdaftar</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3 text-right">Aksi</th>
@@ -236,16 +268,31 @@ function UsersAdmin() {
                       {u.role}
                     </Badge>
                   </td>
+                  <td className="px-4 py-3.5">
+                    {u.activeSubscription?.plan ? (
+                      <div>
+                        <p className="text-sm font-medium text-slate-700">{u.activeSubscription.plan.name}</p>
+                        <Badge className={subscriptionStatusMeta(u.activeSubscription.status).className}>
+                          {subscriptionStatusMeta(u.activeSubscription.status).label}
+                        </Badge>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-400">Tanpa langganan</span>
+                    )}
+                  </td>
                   <td className="px-4 py-3.5 text-slate-500">{formatDate(u.createdAt)}</td>
                   <td className="px-4 py-3.5">
                     <Badge className={u.isActive ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : 'bg-rose-50 text-rose-700 ring-rose-200'}>
                       {u.isActive ? 'Aktif' : 'Nonaktif'}
                     </Badge>
                   </td>
-                  <td className="px-4 py-3.5 text-right">
-                    <Button size="xs" variant={u.isActive ? 'secondary' : 'dark'} onClick={() => void toggleUser(u)} loading={busyId === u.id}>
-                      {u.isActive ? 'Nonaktifkan' : 'Aktifkan'}
-                    </Button>
+                  <td className="px-4 py-3.5">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <Button size="xs" variant={u.isActive ? 'secondary' : 'dark'} onClick={() => void toggleUser(u)} loading={busyId === u.id}>
+                        {u.isActive ? 'Nonaktifkan' : 'Aktifkan'}
+                      </Button>
+                      <Button size="xs" variant="ghost" className="text-rose-500" onClick={() => setDeleteTarget(u)} icon={<Trash2 className="h-3.5 w-3.5" />} aria-label="Hapus pengguna" />
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -277,6 +324,17 @@ function UsersAdmin() {
           </Select>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        danger
+        title="Hapus pengguna?"
+        description={`Semua data milik ${deleteTarget?.email ?? 'pengguna ini'} (postingan, media, langganan, pembayaran) akan dihapus permanen. Tindakan ini tidak bisa dibatalkan.`}
+        confirmLabel="Hapus"
+        onConfirm={deleteUser}
+        loading={deleting}
+      />
     </Card>
   );
 }
@@ -486,6 +544,7 @@ function PendingAdmin() {
   const toast = useToast();
   const { data, loading, refetch } = useFetch<PendingSubscription[]>(() => api.get('/admin/subscriptions/pending'));
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [proofPreview, setProofPreview] = useState<string | null>(null);
 
   const confirmSub = async (id: string) => {
     setConfirmId(id);
@@ -500,6 +559,8 @@ function PendingAdmin() {
     }
   };
 
+  const openProof = (url: string) => setProofPreview(url);
+
   return (
     <Card>
       <CardHeader icon={<Check className="h-4 w-4" />} title="Langganan Menunggu Konfirmasi" description="Verifikasi pembayaran manual pengguna" />
@@ -509,27 +570,63 @@ function PendingAdmin() {
         <EmptyState icon={<Check className="h-6 w-6" />} title="Tidak ada yang menunggu" description="Semua langganan sudah diproses." />
       ) : (
         <div className="divide-y divide-slate-50">
-          {(data ?? []).map((s) => (
-            <div key={s.id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center">
-              <div className="flex flex-1 items-center gap-3">
-                <Avatar name={s.user.fullName || s.user.email} size="sm" />
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-slate-800">{s.user.fullName || s.user.email}</p>
-                  <p className="text-xs text-slate-400">{s.user.email}</p>
+          {(data ?? []).map((s) => {
+            const payment = s.payment?.[0];
+            return (
+              <div key={s.id} className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
+                <div className="flex flex-1 items-center gap-3">
+                  <Avatar name={s.user.fullName || s.user.email} size="sm" />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-800">{s.user.fullName || s.user.email}</p>
+                    <p className="text-xs text-slate-400">{s.user.email}</p>
+                    {payment && (
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {formatCurrency(payment.amount, payment.currency)} · {formatDateTime(payment.createdAt)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Badge className="bg-brand-50 text-brand-700 ring-brand-200">{s.plan?.name}</Badge>
+                  <Badge className={subscriptionStatusMeta(s.status).className}>{subscriptionStatusMeta(s.status).label}</Badge>
+                  <span className="hidden text-sm text-slate-400 sm:inline">via {s.paymentMethod}</span>
+                  {s.paymentProof && (
+                    <Button size="sm" variant="secondary" onClick={() => openProof(s.paymentProof!)} icon={<ImageIcon className="h-4 w-4" />}>
+                      Lihat Bukti
+                    </Button>
+                  )}
+                  <Button size="sm" onClick={() => void confirmSub(s.id)} loading={confirmId === s.id} icon={confirmId !== s.id ? <Check className="h-4 w-4" /> : undefined}>
+                    Konfirmasi
+                  </Button>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <Badge className="bg-brand-50 text-brand-700 ring-brand-200">{s.plan?.name}</Badge>
-                <Badge className={subscriptionStatusMeta(s.status).className}>{subscriptionStatusMeta(s.status).label}</Badge>
-                <span className="hidden text-sm text-slate-400 sm:inline">via {s.paymentMethod}</span>
-                <Button size="sm" onClick={() => void confirmSub(s.id)} loading={confirmId === s.id} icon={confirmId !== s.id ? <Check className="h-4 w-4" /> : undefined}>
-                  Konfirmasi
-                </Button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
+
+      <Modal
+        open={!!proofPreview}
+        onClose={() => setProofPreview(null)}
+        title="Bukti Pembayaran"
+        size="lg"
+        footer={
+          proofPreview && (
+            <a
+              href={proofPreview}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-4 py-2 text-sm font-semibold text-white shadow-glow transition hover:brightness-110"
+            >
+              Buka di tab baru
+            </a>
+          )
+        }
+      >
+        {proofPreview && (
+          <img src={proofPreview} alt="Bukti pembayaran" className="max-h-[60vh] w-full rounded-xl border border-slate-200 object-contain" />
+        )}
+      </Modal>
     </Card>
   );
 }
@@ -585,8 +682,12 @@ function FlagsAdmin() {
 function PaymentsAdmin() {
   const toast = useToast();
   const { data, loading, refetch } = useFetch<string[]>(() => api.get('/admin/payments/methods'));
+  const settings = useFetch<PaymentSetting[]>(() => api.get('/admin/payments/settings'));
   const [selected, setSelected] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [savingSetting, setSavingSetting] = useState(false);
 
   const ALL_METHODS = ['manual', 'stripe', 'tripay', 'midtrans'];
 
@@ -603,42 +704,112 @@ function PaymentsAdmin() {
     }
   };
 
+  const startEdit = (s: PaymentSetting) => {
+    setEditingKey(s.key);
+    setEditValue(s.value ?? '');
+  };
+
+  const saveSetting = async (key: string) => {
+    setSavingSetting(true);
+    try {
+      await api.post(`/admin/payments/settings/${key}`, { value: editValue });
+      toast.success('Informasi pembayaran diperbarui');
+      setEditingKey(null);
+      settings.refetch();
+    } catch (err) {
+      toast.error('Gagal menyimpan', err instanceof Error ? err.message : 'Terjadi kesalahan');
+    } finally {
+      setSavingSetting(false);
+    }
+  };
+
   return (
-    <Card>
-      <CardHeader icon={<CreditCard className="h-4 w-4" />} title="Metode Pembayaran" description="Pilih gateway yang aktif untuk proses berlangganan" />
-      <CardBody className="space-y-5">
-        {loading ? (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader icon={<CreditCard className="h-4 w-4" />} title="Metode Pembayaran" description="Pilih gateway yang aktif untuk proses berlangganan" />
+        <CardBody className="space-y-5">
+          {loading ? (
+            <PageLoader label="Memuat..." />
+          ) : (
+            <>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {ALL_METHODS.map((m) => {
+                  const checked = (selected.length ? selected : data ?? []).includes(m);
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => setSelected((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]))}
+                      className={`flex items-center gap-3 rounded-xl border p-4 text-left transition ${
+                        checked ? 'border-brand-400 bg-brand-50/60 ring-1 ring-brand-200' : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <span className="text-lg">{m === 'manual' ? '🏦' : m === 'stripe' ? '💳' : m === 'tripay' ? '🪙' : '💠'}</span>
+                      <span className="flex-1 capitalize text-sm font-semibold text-slate-800">{m}</span>
+                      <span className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${checked ? 'border-brand-500 bg-brand-500 text-white' : 'border-slate-300'}`}>
+                        {checked && <Check className="h-3.5 w-3.5" />}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={() => void save()} loading={saving} disabled={selected.length === 0}>
+                  Simpan Pengaturan
+                </Button>
+              </div>
+            </>
+          )}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
+          icon={<Receipt className="h-4 w-4" />}
+          title="Informasi Pembayaran Manual"
+          description="Nomor rekening & data bank tujuan yang ditampilkan ke pengguna saat transfer manual"
+        />
+        {settings.loading ? (
           <PageLoader label="Memuat..." />
+        ) : (settings.data ?? []).length === 0 ? (
+          <EmptyState icon={<Receipt className="h-6 w-6" />} title="Belum ada pengaturan" description="Tambahkan informasi rekening untuk pembayaran manual." />
         ) : (
-          <>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {ALL_METHODS.map((m) => {
-                const checked = (selected.length ? selected : data ?? []).includes(m);
-                return (
-                  <button
-                    key={m}
-                    onClick={() => setSelected((prev) => (prev.includes(m) ? prev.filter((x) => x !== m) : [...prev, m]))}
-                    className={`flex items-center gap-3 rounded-xl border p-4 text-left transition ${
-                      checked ? 'border-brand-400 bg-brand-50/60 ring-1 ring-brand-200' : 'border-slate-200 hover:border-slate-300'
-                    }`}
-                  >
-                    <span className="text-lg">{m === 'manual' ? '🏦' : m === 'stripe' ? '💳' : m === 'tripay' ? '🪙' : '💠'}</span>
-                    <span className="flex-1 capitalize text-sm font-semibold text-slate-800">{m}</span>
-                    <span className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${checked ? 'border-brand-500 bg-brand-500 text-white' : 'border-slate-300'}`}>
-                      {checked && <Check className="h-3.5 w-3.5" />}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="flex justify-end">
-              <Button onClick={() => void save()} loading={saving} disabled={selected.length === 0}>
-                Simpan Pengaturan
-              </Button>
-            </div>
-          </>
+          <div className="divide-y divide-slate-50">
+            {(settings.data ?? []).map((s) => (
+              <div key={s.key} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-slate-800">{s.label}</p>
+                  <p className="text-xs text-slate-400">
+                    {editingKey === s.key ? 'Isi nilai baru lalu simpan.' : s.value || <span className="italic">Belum diisi</span>}
+                  </p>
+                </div>
+                {editingKey === s.key ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      placeholder={s.placeholder}
+                      className="w-56"
+                    />
+                    <Button size="sm" onClick={() => void saveSetting(s.key)} loading={savingSetting}>
+                      Simpan
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setEditingKey(null)}>
+                      Batal
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-end gap-2">
+                    {s.value && <code className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-sm font-semibold text-slate-700">{s.value}</code>}
+                    <Button size="sm" variant="ghost" onClick={() => startEdit(s)} icon={<Pencil className="h-3.5 w-3.5" />}>
+                      Edit
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         )}
-      </CardBody>
-    </Card>
+      </Card>
+    </div>
   );
 }

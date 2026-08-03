@@ -47,18 +47,66 @@ export class AdminService {
   }
 
   async listUsers() {
-    return this.prisma.user.findMany({
+    const users = await this.prisma.user.findMany({
       select: {
-        id: true, email: true, username: true, fullName: true, role: true, isActive: true, createdAt: true,
+        id: true,
+        email: true,
+        username: true,
+        fullName: true,
+        avatar: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+        lastLoginAt: true,
+        subscriptions: {
+          where: { status: 'active' },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          include: { plan: true },
+        },
+        _count: {
+          select: { posts: true, socialAccounts: true },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
+    return users.map(({ subscriptions, _count, ...u }) => ({
+      ...u,
+      postCount: _count.posts,
+      accountCount: _count.socialAccounts,
+      activeSubscription: subscriptions[0] ?? null,
+    }));
   }
 
   async toggleUser(id: string) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException('User tidak ditemukan');
     return this.prisma.user.update({ where: { id }, data: { isActive: !user.isActive } });
+  }
+
+  async deleteUser(id: string) {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+    if (!user) throw new NotFoundException('User tidak ditemukan');
+    if (user.role === 'admin') {
+      const admins = await this.prisma.user.count({ where: { role: 'admin' } });
+      if (admins <= 1) throw new BadRequestException('Tidak bisa menghapus admin terakhir');
+    }
+    await this.prisma.$transaction([
+      this.prisma.postAccount.deleteMany({ where: { post: { userId: id } } }),
+      this.prisma.postMedia.deleteMany({ where: { post: { userId: id } } }),
+      this.prisma.postPublication.deleteMany({ where: { post: { userId: id } } }),
+      this.prisma.post.deleteMany({ where: { userId: id } }),
+      this.prisma.payment.deleteMany({ where: { userId: id } }),
+      this.prisma.inboxItem.deleteMany({ where: { userId: id } }),
+      this.prisma.aiUsage.deleteMany({ where: { userId: id } }),
+      this.prisma.autoReplyRule.deleteMany({ where: { userId: id } }),
+      this.prisma.mediaFile.deleteMany({ where: { userId: id } }),
+      this.prisma.socialAccount.deleteMany({ where: { userId: id } }),
+      this.prisma.subscription.deleteMany({ where: { userId: id } }),
+      this.prisma.notification.deleteMany({ where: { userId: id } }),
+      this.prisma.user.delete({ where: { id } }),
+    ]);
+    return { ok: true };
   }
 
   // ---------- Plans ----------
@@ -85,11 +133,20 @@ export class AdminService {
   getPaymentMethods() {
     return this.payments.enabledMethods();
   }
+  listPaymentSettings() {
+    return this.payments.listSettings();
+  }
+  savePaymentSetting(key: string, body: any) {
+    return this.payments.upsertSetting(key, body);
+  }
+  removePaymentSetting(key: string) {
+    return this.payments.deleteSetting(key);
+  }
 
   async listPendingSubscriptions() {
     return this.prisma.subscription.findMany({
       where: { status: 'pending' },
-      include: { user: true, plan: true },
+      include: { user: true, plan: true, payment: { take: 1 } },
     });
   }
 

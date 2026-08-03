@@ -36,6 +36,11 @@ export class AdminController {
     return this.admin.toggleUser(id);
   }
 
+  @Delete('users/:id')
+  removeUser(@Param('id') id: string) {
+    return this.admin.deleteUser(id);
+  }
+
   @Get('plans')
   allPlans() {
     return this.admin.listPlans();
@@ -84,5 +89,20 @@ export class AdminController {
   @Post('payments/methods')
   setPaymentMethods(@Body() body: { methods: string[] }) {
     return this.admin.setPaymentMethods(body.methods);
+  }
+
+  @Get('payments/settings')
+  paymentSettings() {
+    return this.admin.listPaymentSettings();
+  }
+
+  @Post('payments/settings/:key')
+  savePaymentSetting(@Param('key') key: string, @Body() body: any) {
+    return this.admin.savePaymentSetting(key, body);
+  }
+
+  @Delete('payments/settings/:key')
+  removePaymentSetting(@Param('key') key: string) {
+    return this.admin.removePaymentSetting(key);
   }
 }

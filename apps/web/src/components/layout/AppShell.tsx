@@ -22,6 +22,7 @@ import { useAuth } from '@/lib/auth';
 import { LogoLight } from '@/components/ui/Logo';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 const NAV = [
   { to: '/app', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -193,6 +194,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <NotificationBell />
             <Link
               to="/app/posts/new"
               className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-3.5 py-2 text-sm font-semibold text-white shadow-glow transition hover:brightness-110"

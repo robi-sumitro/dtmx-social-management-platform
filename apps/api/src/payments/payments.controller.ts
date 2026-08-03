@@ -12,6 +12,11 @@ export class PaymentsController {
     return this.payments.enabledMethods();
   }
 
+  @Get('manual-info')
+  async manualInfo() {
+    return this.payments.manualInfo();
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get()
   async list(@CurrentUser('id') userId: string) {

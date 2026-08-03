@@ -9,6 +9,9 @@ export interface User {
   quotaAi?: number;
   lastLoginAt?: string;
   createdAt: string;
+  postCount?: number;
+  accountCount?: number;
+  activeSubscription?: Subscription | null;
 }
 
 export interface AuthTokens {
@@ -215,6 +218,36 @@ export interface PendingSubscription {
   paymentProof?: string;
   user: { email: string; fullName?: string };
   plan: Plan;
+  payment?: Payment[];
+  createdAt?: string;
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  type: string;
+  title: string;
+  message?: string;
+  link?: string;
+  data?: Record<string, unknown>;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface PaymentSetting {
+  id: string;
+  key: string;
+  label: string;
+  value?: string;
+  placeholder?: string;
+  order: number;
+  updatedAt?: string;
+}
+
+export interface ManualPaymentInfo {
+  enabled: boolean;
+  info: Record<string, string>;
+  fields: PaymentSetting[];
 }
 
 export interface ApiError {

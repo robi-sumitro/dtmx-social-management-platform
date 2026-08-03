@@ -6,6 +6,7 @@ import { Post } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PlatformsService } from '../../platforms/platforms.service';
 import { PublishContext } from '../../platforms/platform.types';
+import { NotificationsService } from '../../notifications/notifications.service';
 
 type PostWithMedia = Post & {
   media: { media: { filename: string; fileType: string; mimeType: string | null } }[];
@@ -18,6 +19,7 @@ export class PublishingProcessor extends WorkerHost {
     private readonly prisma: PrismaService,
     private readonly provider: PlatformsService,
     private readonly config: ConfigService,
+    private readonly notifications: NotificationsService,
   ) {
     super();
   }
@@ -76,6 +78,18 @@ export class PublishingProcessor extends WorkerHost {
         errorMessage: errors.length ? errors.join('; ') : null,
         retryCount: { increment: errors.length ? 1 : 0 },
       },
+    });
+
+    await this.notifications.create({
+      userId: post.userId,
+      type: 'post',
+      title: finalStatus === 'published' ? 'Postingan terbit' : 'Postingan gagal diterbitkan',
+      message:
+        finalStatus === 'published'
+          ? `"${post.caption?.slice(0, 80) || post.title || 'Postingan'}" berhasil diterbitkan ke ${published} platform.`
+          : errors.join('; ') || 'Terjadi kesalahan saat menerbitkan postingan.',
+      link: `/app/posts/${postId}`,
+      data: { postId, status: finalStatus },
     });
 
     if (finalStatus === 'failed') {

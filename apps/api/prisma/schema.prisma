@@ -37,6 +37,7 @@ model User {
   inboxItems       InboxItem[]
   aiUsages         AiUsage[]
   autoReplies      AutoReplyRule[]
+  notifications    Notification[]
 
   @@map("users")
 }
@@ -79,6 +80,7 @@ model Subscription {
 
   user  User  @relation(fields: [userId], references: [id])
   plan  Plan  @relation(fields: [planId], references: [id])
+  payment Payment[]
 
   @@index([userId])
   @@index([status])
@@ -102,6 +104,7 @@ model Payment {
 
   user          User          @relation(fields: [userId], references: [id])
   plan          Plan          @relation(fields: [planId], references: [id])
+  subscription  Subscription? @relation(fields: [subscriptionId], references: [id])
 
   @@index([userId])
   @@index([status])
@@ -306,4 +309,38 @@ model FeatureFlag {
   updatedAt   DateTime @updatedAt
 
   @@map("feature_flags")
+}
+
+// ============ NOTIFICATIONS (in-app) ============
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   @default("info") // info|success|warning|payment|post|subscription|system
+  title     String
+  message   String?
+  link      String?
+  data      Json?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ============ PAYMENT SETTINGS (admin config, e.g. manual bank info) ============
+
+model PaymentSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  label       String
+  value       String?
+  placeholder String?
+  order       Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  @@map("payment_settings")
 }

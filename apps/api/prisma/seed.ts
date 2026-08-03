@@ -66,6 +66,12 @@ const featureFlags = [
   { key: 'publishing', name: 'Multi-Platform Publish', description: 'Terbitkan ke Facebook/IG/YouTube/TikTok', enabled: true },
 ];
 
+const paymentSettings = [
+  { key: 'manual_bank_name', label: 'Nama Bank Tujuan', value: '', placeholder: 'contoh: BCA' },
+  { key: 'manual_bank_account', label: 'Nomor Rekening Tujuan', value: '', placeholder: 'contoh: 1234567890' },
+  { key: 'manual_bank_holder', label: 'Atas Nama Rekening', value: '', placeholder: 'contoh: PT DtmX Indonesia' },
+];
+
 async function main() {
   console.log('Seeding plans...');
   for (const p of plans) {
@@ -82,6 +88,15 @@ async function main() {
       where: { key: f.key },
       update: f,
       create: f,
+    });
+  }
+
+  console.log('Seeding payment settings...');
+  for (const s of paymentSettings) {
+    await prisma.paymentSetting.upsert({
+      where: { key: s.key },
+      update: s,
+      create: s,
     });
   }
 

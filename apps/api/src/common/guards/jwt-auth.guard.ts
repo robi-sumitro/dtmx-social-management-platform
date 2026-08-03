@@ -8,6 +8,7 @@ import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { IS_PUBLIC_KEY } from '../decorators/auth.decorators';
+import { PrismaService } from '../../prisma/prisma.service';
 
 export interface AuthUser {
   id: string;
@@ -21,9 +22,10 @@ export class JwtAuthGuard implements CanActivate {
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
     private readonly reflector: Reflector,
+    private readonly prisma: PrismaService,
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -39,9 +41,17 @@ export class JwtAuthGuard implements CanActivate {
       const payload = this.jwtService.verify(token, {
         secret: this.config.get<string>('JWT_SECRET'),
       });
-      request.user = { id: payload.sub, email: payload.email, role: payload.role };
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { id: true, email: true, role: true, isActive: true },
+      });
+      if (!user || !user.isActive) {
+        throw new UnauthorizedException('Akun dinonaktifkan');
+      }
+      request.user = { id: user.id, email: user.email, role: user.role };
       return true;
-    } catch {
+    } catch (e) {
+      if (e instanceof UnauthorizedException) throw e;
       throw new UnauthorizedException('Invalid or expired token');
     }
   }

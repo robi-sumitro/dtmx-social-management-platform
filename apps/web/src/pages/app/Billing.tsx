@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useFetch } from '@/lib/useApi';
 import { api } from '@/lib/api';
-import type { Plan, PaymentMethod, Subscription, Payment, UsageResponse } from '@/lib/types';
+import type { Plan, PaymentMethod, Subscription, Payment, UsageResponse, ManualPaymentInfo } from '@/lib/types';
 import { cn, formatCurrency, formatDate, subscriptionStatusMeta, paymentStatusMeta, PAYMENT_METHOD_META } from '@/lib/utils';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
@@ -42,6 +42,7 @@ export function Billing() {
   const payments = useFetch<Payment[]>(() => api.get('/payments'));
   const usage = useFetch<UsageResponse>(() => api.get('/subscriptions/usage'));
   const activeSub = useFetch<Subscription | null>(() => api.get('/subscriptions/active'));
+  const manualInfo = useFetch<ManualPaymentInfo>(() => api.get('/payments/manual-info'));
 
   const [selected, setSelected] = useState<Plan | null>(null);
   const [step, setStep] = useState<'methods' | 'upload'>('methods');
@@ -277,6 +278,22 @@ export function Billing() {
               );
             })}
             {payments.loading && <p className="text-xs text-slate-400">Memuat metode...</p>}
+            {manualInfo.data?.info.manual_bank_name && (
+              <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3.5 text-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Rekening tujuan (manual)</p>
+                <div className="mt-1.5 space-y-1">
+                  {manualInfo.data.info.manual_bank_name && (
+                    <p className="text-slate-600">Bank: <span className="font-semibold text-slate-800">{manualInfo.data.info.manual_bank_name}</span></p>
+                  )}
+                  {manualInfo.data.info.manual_bank_account && (
+                    <p className="text-slate-600">No. Rekening: <span className="font-mono font-semibold text-slate-800">{manualInfo.data.info.manual_bank_account}</span></p>
+                  )}
+                  {manualInfo.data.info.manual_bank_holder && (
+                    <p className="text-slate-600">A/N: <span className="font-semibold text-slate-800">{manualInfo.data.info.manual_bank_holder}</span></p>
+                  )}
+                </div>
+              </div>
+            )}
             <p className="flex items-center gap-2 pt-2 text-xs text-slate-400">
               <Sparkles className="h-3.5 w-3.5" />
               Untuk pembayaran manual, upload bukti transfer lalu admin akan mengonfirmasi.
@@ -409,8 +426,37 @@ export function Billing() {
             </div>
 
             {method === 'manual' && (
-              <div className="rounded-xl border border-amber-100 bg-amber-50/60 p-4 text-sm text-amber-700">
-                Setelah klik "Mulai", unggah bukti transfer di halaman berikutnya. Admin akan mengonfirmasi pembayaranmu.
+              <div className="space-y-3">
+                <div className="rounded-xl border border-amber-100 bg-amber-50/60 p-4 text-sm text-amber-700">
+                  Transfer ke rekening di bawah ini, lalu klik "Mulai" dan unggah bukti transfer. Admin akan mengonfirmasi pembayaranmu.
+                </div>
+                {(manualInfo.data?.info.manual_bank_name || manualInfo.data?.info.manual_bank_account) && (
+                  <div className="overflow-hidden rounded-xl border border-slate-200">
+                    <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Data Rekening Tujuan
+                    </div>
+                    <div className="divide-y divide-slate-50 px-4">
+                      {manualInfo.data.info.manual_bank_name && (
+                        <div className="flex items-center justify-between py-2.5 text-sm">
+                          <span className="text-slate-500">Bank</span>
+                          <span className="font-semibold text-slate-800">{manualInfo.data.info.manual_bank_name}</span>
+                        </div>
+                      )}
+                      {manualInfo.data.info.manual_bank_account && (
+                        <div className="flex items-center justify-between py-2.5 text-sm">
+                          <span className="text-slate-500">Nomor Rekening</span>
+                          <span className="font-mono font-semibold text-slate-800">{manualInfo.data.info.manual_bank_account}</span>
+                        </div>
+                      )}
+                      {manualInfo.data.info.manual_bank_holder && (
+                        <div className="flex items-center justify-between py-2.5 text-sm">
+                          <span className="text-slate-500">Atas Nama</span>
+                          <span className="font-semibold text-slate-800">{manualInfo.data.info.manual_bank_holder}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

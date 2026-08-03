@@ -1,8 +1,6 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS",
-    "buildCommand": "pnpm install && pnpm --filter @dtmx/api prisma:generate && pnpm --filter @dtmx/api build",
     "watchPatterns": [
       "apps/api/**",
       "packages/**",
@@ -13,7 +11,6 @@
     ]
   },
   "deploy": {
-    "startCommand": "pnpm --filter @dtmx/api prisma:deploy && pnpm --filter @dtmx/api start:prod",
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 120,
     "restartPolicyType": "ON_FAILURE",

@@ -108,6 +108,35 @@ pnpm db:studio     # Prisma Studio (GUI database)
 - Ubah `apps/api/prisma/schema.prisma` lalu `pnpm db:migrate --name <label>`.
 - Seed idempoten (`upsert` berdasarkan slug/key) — aman dijalankan berulang.
 
+## OAuth Callback URL (isi di dashboard platform)
+
+Saat membuat aplikasi OAuth di **Google Cloud Console** / **Meta for Developers**, isi **Authorized redirect URIs** dengan URL callback berikut (berdasarkan `API_URL` di `apps/api/.env`):
+
+| Platform | Login route | Callback URL (Authorized redirect URI) |
+| --- | --- | --- |
+| Google | `GET /api/auth/google` | `{API_URL}/api/auth/google/callback` |
+| Facebook | `GET /api/auth/facebook` | `{API_URL}/api/auth/facebook/callback` |
+
+Default lokal (dengan `API_URL=http://localhost:3000`):
+
+- Google: `http://localhost:3000/api/auth/google/callback`
+- Facebook: `http://localhost:3000/api/auth/facebook/callback`
+
+> Di produksi ganti `{API_URL}` dengan domain API (mis. `https://api.dtmx.app`) pada `.env`, lalu tambahkan URL yang sama di dashboard masing-masing platform. Jangan lupa isi `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` dan `FACEBOOK_APP_ID`/`FACEBOOK_APP_SECRET`. Setelah login, browser akan diarahkan ke `{FRONTEND_URL}/auth/oauth/callback` (route SPA, tidak perlu didaftarkan di platform).
+
+> **TikTok & YouTube tidak memakai OAuth login** — keduanya hanya provider publish konten. Token (scope `video.publish` untuk TikTok, upload YouTube) dimasukkan manual via `POST /social-accounts/connect`, jadi tidak ada callback URL yang perlu didaftarkan.
+
+### Akun admin pertama kali
+
+Seed (`pnpm db:seed`) otomatis membuat akun admin (idempoten). Kredensial default dapat diubah lewat env:
+
+```bash
+SEED_ADMIN_EMAIL=admin@dtmx.app
+SEED_ADMIN_PASSWORD=admin123456
+```
+
+Admin ini juga mendapat subscription **Pro** (aktif) agar kuota AI tersedia untuk pengujian.
+
 ## Environment (variabel penting)
 
 Lihat `apps/api/.env.example` untuk daftar lengkap. Bagian utama:

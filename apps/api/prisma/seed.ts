@@ -1,6 +1,14 @@
 import { PrismaClient } from '@prisma/client';
+import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
+
+const adminDefaults = {
+  email: process.env.SEED_ADMIN_EMAIL || 'admin@dtmx.app',
+  password: process.env.SEED_ADMIN_PASSWORD || 'admin123456',
+  username: process.env.SEED_ADMIN_USERNAME || 'admin',
+  fullName: process.env.SEED_ADMIN_NAME || 'DtmX Admin',
+};
 
 const plans = [
   {
@@ -74,6 +82,46 @@ async function main() {
       update: f,
       create: f,
     });
+  }
+
+  console.log(`Seeding admin user (${adminDefaults.email})...`);
+  const passwordHash = await bcrypt.hash(adminDefaults.password, 10);
+  const admin = await prisma.user.upsert({
+    where: { email: adminDefaults.email },
+    update: {
+      role: 'admin',
+      isActive: true,
+      passwordHash: adminDefaults.password ? passwordHash : undefined,
+    },
+    create: {
+      email: adminDefaults.email,
+      username: adminDefaults.username,
+      passwordHash,
+      fullName: adminDefaults.fullName,
+      role: 'admin',
+      isActive: true,
+    },
+  });
+  console.log(`Admin ready: ${admin.email} / ${adminDefaults.password}`);
+
+  const pro = await prisma.plan.findUnique({ where: { slug: 'pro' } });
+  if (pro) {
+    const existingActive = await prisma.subscription.findFirst({
+      where: { userId: admin.id, status: 'active' },
+    });
+    if (!existingActive) {
+      await prisma.subscription.create({
+        data: {
+          userId: admin.id,
+          planId: pro.id,
+          status: 'active',
+          startedAt: new Date(),
+          expiresAt: new Date(Date.now() + pro.billingPeriodDays * 86400000),
+          activeAiQuota: pro.aiPerMonth,
+        },
+      });
+      console.log(`Admin subscription: ${pro.name}`);
+    }
   }
 }
 

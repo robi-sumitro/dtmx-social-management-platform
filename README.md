@@ -128,7 +128,13 @@ Default lokal (dengan `API_URL=http://localhost:3000`):
 
 ### Akun admin pertama kali
 
-Seed (`pnpm db:seed`) otomatis membuat akun admin (idempoten). Kredensial default dapat diubah lewat env:
+Seed otomatis membuat akun admin (idempoten) dan dijalankan **pada saat deploy/start pertama** (`prisma:deploy` → `prisma:seed:prod` → `start:prod`) sehingga akun admin selalu tersedia setelah app pertama kali dibangun. Untuk development, jalankan manual:
+
+```bash
+pnpm db:seed
+```
+
+Kredensial default dapat diubah lewat env:
 
 ```bash
 SEED_ADMIN_EMAIL=admin@dtmx.app

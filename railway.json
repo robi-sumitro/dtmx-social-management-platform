@@ -2,12 +2,16 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "watchPatterns": [
-      "apps/api/**",
+      "apps/**",
       "packages/**",
       "package.json",
       "pnpm-lock.yaml",
       "pnpm-workspace.yaml",
-      "tsconfig.base.json"
+      "tsconfig.base.json",
+      "railpack.json",
+      "railway.json",
+      "Procfile",
+      ".npmrc"
     ]
   },
   "deploy": {

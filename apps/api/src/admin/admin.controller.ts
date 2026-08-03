@@ -105,4 +105,14 @@ export class AdminController {
   removePaymentSetting(@Param('key') key: string) {
     return this.admin.removePaymentSetting(key);
   }
+
+  @Get('ai/settings')
+  aiSettings() {
+    return this.admin.listAiSettings();
+  }
+
+  @Post('ai/settings/:key')
+  saveAiSetting(@Param('key') key: string, @Body() body: { value: string }) {
+    return this.admin.saveAiSetting(key, body.value ?? '');
+  }
 }

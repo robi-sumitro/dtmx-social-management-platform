@@ -250,6 +250,16 @@ export interface ManualPaymentInfo {
   fields: PaymentSetting[];
 }
 
+export interface AiSetting {
+  id: string;
+  key: string;
+  label: string;
+  value?: string;
+  placeholder?: string;
+  order: number;
+  updatedAt?: string;
+}
+
 export interface ApiError {
   statusCode: number;
   message: string | string[];

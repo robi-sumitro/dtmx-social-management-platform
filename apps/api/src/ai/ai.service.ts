@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import { AIProvider } from '@dtmx/shared';
+import { AISettingsService } from './ai-settings.service';
 
 export interface AICompletion {
   content: string;
@@ -18,14 +18,14 @@ export interface AIAdapter {
 export class OpenAiAdapter implements AIAdapter {
   provider: AIProvider = 'openai';
   private logger = new Logger(OpenAiAdapter.name);
-  constructor(private config: ConfigService) {}
+  constructor(private readonly settings: AISettingsService) {}
   async complete(prompt: string, opts?: any) {
-    const key = this.config.get<string>('OPENAI_API_KEY');
-    if (!key) throw new Error('OPENAI_API_KEY tidak dikonfigurasi');
+    const key = this.settings.getApiKey('openai');
+    if (!key) throw new Error('OpenAI API key belum dikonfigurasi di Admin > AI');
     const res = await axios.post(
       'https://api.openai.com/v1/chat/completions',
       {
-        model: this.config.get<string>('OPENAI_MODEL', 'gpt-4o-mini'),
+        model: this.settings.getModel('openai'),
         messages: [{ role: 'user', content: prompt }],
         temperature: opts?.temperature ?? 0.7,
         max_tokens: opts?.maxTokens ?? 300,
@@ -44,14 +44,14 @@ export class OpenAiAdapter implements AIAdapter {
 @Injectable()
 export class AnthropicAdapter implements AIAdapter {
   provider: AIProvider = 'anthropic';
-  constructor(private config: ConfigService) {}
+  constructor(private readonly settings: AISettingsService) {}
   private tokenLength(s: string) { return Math.ceil(s.length / 4); }
   async complete(prompt: string, opts?: any) {
-    const key = this.config.get<string>('ANTHROPIC_API_KEY');
-    if (!key) throw new Error('ANTHROPIC_API_KEY tidak dikonfigurasi');
+    const key = this.settings.getApiKey('anthropic');
+    if (!key) throw new Error('Anthropic API key belum dikonfigurasi di Admin > AI');
     const res = await axios.post(
       'https://api.anthropic.com/v1/messages',
-      { model: this.config.get<string>('ANTHROPIC_MODEL', 'claude-3-5-haiku-latest'), max_tokens: opts?.maxTokens ?? 300, messages: [{ role: 'user', content: prompt }] },
+      { model: this.settings.getModel('anthropic'), max_tokens: opts?.maxTokens ?? 300, messages: [{ role: 'user', content: prompt }] },
       { headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01' } },
     );
     const text = res.data?.content?.[0]?.text ?? '';
@@ -62,11 +62,11 @@ export class AnthropicAdapter implements AIAdapter {
 @Injectable()
 export class GeminiAdapter implements AIAdapter {
   provider: AIProvider = 'gemini';
-  constructor(private config: ConfigService) {}
+  constructor(private readonly settings: AISettingsService) {}
   async complete(prompt: string, opts?: any) {
-    const key = this.config.get<string>('GEMINI_API_KEY');
-    if (!key) throw new Error('GEMINI_API_KEY tidak dikonfigurasi');
-    const model = this.config.get<string>('GEMINI_MODEL', 'gemini-1.5-flash');
+    const key = this.settings.getApiKey('gemini');
+    if (!key) throw new Error('Gemini API key belum dikonfigurasi di Admin > AI');
+    const model = this.settings.getModel('gemini');
     const res = await axios.post(
       `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
       { contents: [{ parts: [{ text: prompt }] }] },
@@ -81,7 +81,7 @@ export class AIService {
   private readonly logger = new Logger(AIService.name);
   private adapters: Record<string, AIAdapter> = {};
   constructor(
-    private config: ConfigService,
+    private readonly settings: AISettingsService,
     openai: OpenAiAdapter,
     anthropic: AnthropicAdapter,
     gemini: GeminiAdapter,
@@ -92,7 +92,7 @@ export class AIService {
   }
 
   get activeProvider(): string {
-    return this.config.get<string>('AI_PROVIDER', 'openai');
+    return this.settings.getActiveProvider();
   }
 
   async complete(prompt: string, opts?: any, provider?: string): Promise<AICompletion> {

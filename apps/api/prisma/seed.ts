@@ -72,6 +72,16 @@ const paymentSettings = [
   { key: 'manual_bank_holder', label: 'Atas Nama Rekening', value: '', placeholder: 'contoh: PT DtmX Indonesia' },
 ];
 
+const aiSettings = [
+  { key: 'active_provider', label: 'Provider AI Aktif', value: '', placeholder: 'openai | anthropic | gemini' },
+  { key: 'openai_api_key', label: 'OpenAI API Key', value: '', placeholder: 'sk-...' },
+  { key: 'openai_model', label: 'OpenAI Model', value: '', placeholder: 'gpt-4o-mini' },
+  { key: 'anthropic_api_key', label: 'Anthropic API Key', value: '', placeholder: 'sk-ant-...' },
+  { key: 'anthropic_model', label: 'Anthropic Model', value: '', placeholder: 'claude-3-5-haiku-latest' },
+  { key: 'gemini_api_key', label: 'Gemini API Key', value: '', placeholder: 'AIza...' },
+  { key: 'gemini_model', label: 'Gemini Model', value: '', placeholder: 'gemini-1.5-flash' },
+];
+
 async function main() {
   console.log('Seeding plans...');
   for (const p of plans) {
@@ -94,6 +104,15 @@ async function main() {
   console.log('Seeding payment settings...');
   for (const s of paymentSettings) {
     await prisma.paymentSetting.upsert({
+      where: { key: s.key },
+      update: s,
+      create: s,
+    });
+  }
+
+  console.log('Seeding AI settings...');
+  for (const s of aiSettings) {
+    await prisma.aiSetting.upsert({
       where: { key: s.key },
       update: s,
       create: s,

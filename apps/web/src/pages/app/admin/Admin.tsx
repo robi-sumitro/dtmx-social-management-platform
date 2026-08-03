@@ -16,10 +16,12 @@ import {
   X,
   RefreshCw,
   Activity,
+  Sparkles,
+  Save,
 } from 'lucide-react';
 import { useFetch } from '@/lib/useApi';
 import { api } from '@/lib/api';
-import type { AdminDashboard, User, Plan, PendingSubscription, FeatureFlag, Post, PaymentSetting } from '@/lib/types';
+import type { AdminDashboard, User, Plan, PendingSubscription, FeatureFlag, Post, PaymentSetting, AiSetting } from '@/lib/types';
 import { formatDate, formatDateTime, formatCurrency, subscriptionStatusMeta, postStatusMeta } from '@/lib/utils';
 import { PageHeader, StatCard, PlatformIcon } from '@/components/shared/PageHeader';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
@@ -46,16 +48,16 @@ import {
 } from 'recharts';
 import { Avatar } from '@/components/ui/Avatar';
 
-type Tab = 'overview' | 'users' | 'plans' | 'pending' | 'flags' | 'payments' | 'posts';
+type Tab = 'overview' | 'users' | 'plans' | 'pending' | 'flags' | 'payments' | 'posts' | 'ai';
 
 export function Admin() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = (searchParams.get('tab') as Tab) || 'overview';
-  const [tab, setTab] = useState<Tab>(['overview', 'users', 'posts', 'plans', 'pending', 'flags', 'payments'].includes(tabParam) ? tabParam : 'overview');
+  const [tab, setTab] = useState<Tab>(['overview', 'users', 'posts', 'plans', 'pending', 'flags', 'payments', 'ai'].includes(tabParam) ? tabParam : 'overview');
   const stats = useFetch<AdminDashboard>(() => api.get('/admin/dashboard'));
 
   useEffect(() => {
-    if (['overview', 'users', 'posts', 'plans', 'pending', 'flags', 'payments'].includes(tabParam)) {
+    if (['overview', 'users', 'posts', 'plans', 'pending', 'flags', 'payments', 'ai'].includes(tabParam)) {
       setTab(tabParam);
     }
   }, [tabParam]);
@@ -84,6 +86,7 @@ export function Admin() {
           { value: 'pending', label: 'Konfirmasi' },
           { value: 'flags', label: 'Feature Flags' },
           { value: 'payments', label: 'Pembayaran' },
+          { value: 'ai', label: 'AI Providers' },
         ]}
       />
 
@@ -94,6 +97,7 @@ export function Admin() {
       {tab === 'pending' && <PendingAdmin />}
       {tab === 'flags' && <FlagsAdmin />}
       {tab === 'payments' && <PaymentsAdmin />}
+      {tab === 'ai' && <AiAdmin />}
     </div>
   );
 }
@@ -807,6 +811,186 @@ function PaymentsAdmin() {
                 )}
               </div>
             ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+const AI_PROVIDER_META: { key: string; label: string; icon: string }[] = [
+  { key: 'openai', label: 'OpenAI', icon: '🤖' },
+  { key: 'anthropic', label: 'Anthropic', icon: '🟠' },
+  { key: 'gemini', label: 'Gemini', icon: '✨' },
+];
+
+function maskValue(v?: string): string {
+  if (!v) return '';
+  if (v.length <= 8) return '••••••••';
+  return `${v.slice(0, 4)}••••${v.slice(-4)}`;
+}
+
+function isSecretKey(key: string): boolean {
+  return key.endsWith('_api_key');
+}
+
+function AiAdmin() {
+  const toast = useToast();
+  const { data, loading, refetch } = useFetch<AiSetting[]>(() => api.get('/admin/ai/settings'));
+  const [savingProvider, setSavingProvider] = useState<string | null>(null);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [savingSetting, setSavingSetting] = useState(false);
+
+  const settings = data ?? [];
+  const activeProvider = settings.find((s) => s.key === 'active_provider')?.value || '';
+  const credentialSettings = settings.filter((s) => s.key !== 'active_provider');
+
+  const saveProvider = async (provider: string) => {
+    setSavingProvider(provider);
+    try {
+      await api.post('/admin/ai/settings/active_provider', { value: provider });
+      toast.success('Provider AI aktif diperbarui');
+      refetch();
+    } catch (err) {
+      toast.error('Gagal menyimpan', err instanceof Error ? err.message : 'Terjadi kesalahan');
+    } finally {
+      setSavingProvider(null);
+    }
+  };
+
+  const startEdit = (s: AiSetting) => {
+    setEditingKey(s.key);
+    setEditValue(isSecretKey(s.key) ? '' : s.value ?? '');
+  };
+
+  const saveSetting = async (key: string) => {
+    if (isSecretKey(key) && !editValue.trim()) {
+      toast.warning('Isi nilai baru', 'Kosongkan untuk mempertahankan nilai saat ini.');
+      return;
+    }
+    setSavingSetting(true);
+    try {
+      await api.post(`/admin/ai/settings/${key}`, { value: editValue });
+      toast.success('Pengaturan AI diperbarui');
+      setEditingKey(null);
+      refetch();
+    } catch (err) {
+      toast.error('Gagal menyimpan', err instanceof Error ? err.message : 'Terjadi kesalahan');
+    } finally {
+      setSavingSetting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader
+          icon={<Sparkles className="h-4 w-4" />}
+          title="Provider AI Aktif"
+          description="Pilih provider yang dipakai untuk semua fitur AI (AI Studio, auto reply, dsb.)"
+        />
+        <CardBody className="space-y-5">
+          {loading ? (
+            <PageLoader label="Memuat..." />
+          ) : (
+            <>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {AI_PROVIDER_META.map((p) => {
+                  const checked = activeProvider === p.key;
+                  return (
+                    <button
+                      key={p.key}
+                      onClick={() => void saveProvider(p.key)}
+                      disabled={savingProvider !== null}
+                      className={`flex items-center gap-3 rounded-xl border p-4 text-left transition ${
+                        checked ? 'border-brand-400 bg-brand-50/60 ring-1 ring-brand-200' : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <span className="text-xl">{p.icon}</span>
+                      <span className="flex-1">
+                        <span className="block text-sm font-semibold text-slate-800">{p.label}</span>
+                        <span className="block text-xs text-slate-400">{checked ? 'Aktif' : 'Klik untuk aktifkan'}</span>
+                      </span>
+                      {savingProvider === p.key ? (
+                        <RefreshCw className="h-4 w-4 animate-spin text-brand-500" />
+                      ) : (
+                        <span className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${checked ? 'border-brand-500 bg-brand-500 text-white' : 'border-slate-300'}`}>
+                          {checked && <Check className="h-3.5 w-3.5" />}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="flex items-center gap-2 text-xs text-slate-400">
+                <Sparkles className="h-3.5 w-3.5" />
+                Provider aktif: <Badge className="bg-brand-50 text-brand-700 ring-brand-200">{activeProvider || 'openai'}</Badge>
+              </p>
+            </>
+          )}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
+          icon={<Save className="h-4 w-4" />}
+          title="Kredensial & Model AI"
+          description="API key dan model tiap provider. Nilai API key hanya disimpan di server."
+        />
+        {loading ? (
+          <PageLoader label="Memuat..." />
+        ) : credentialSettings.length === 0 ? (
+          <EmptyState icon={<Sparkles className="h-6 w-6" />} title="Belum ada pengaturan" />
+        ) : (
+          <div className="divide-y divide-slate-50">
+            {credentialSettings.map((s) => {
+              const secret = isSecretKey(s.key);
+              const display = secret ? maskValue(s.value) : s.value || '';
+              return (
+                <div key={s.key} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-slate-800">{s.label}</p>
+                      <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{s.key}</code>
+                    </div>
+                    <p className="mt-0.5 text-xs text-slate-400">
+                      {editingKey === s.key
+                        ? secret
+                          ? 'Ketik API key baru untuk mengganti (kosongkan untuk mempertahankan).'
+                          : 'Isi nilai baru lalu simpan.'
+                        : display || <span className="italic">Belum diisi</span>}
+                    </p>
+                  </div>
+                  {editingKey === s.key ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        placeholder={s.placeholder || (secret ? 'API key baru' : 'Isi nilai')}
+                        type={secret ? 'password' : 'text'}
+                        className="w-56"
+                      />
+                      <Button size="sm" onClick={() => void saveSetting(s.key)} loading={savingSetting}>
+                        Simpan
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditingKey(null)}>
+                        Batal
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-end gap-2">
+                      {display && (
+                        <code className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-sm font-semibold text-slate-700">{display}</code>
+                      )}
+                      <Button size="sm" variant="ghost" onClick={() => startEdit(s)} icon={<Pencil className="h-3.5 w-3.5" />}>
+                        Edit
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </Card>

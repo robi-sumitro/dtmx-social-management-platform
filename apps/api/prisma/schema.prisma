@@ -344,3 +344,17 @@ model PaymentSetting {
 
   @@map("payment_settings")
 }
+
+// ============ AI SETTINGS (admin config: active provider, API keys, models) ============
+
+model AiSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  label       String
+  value       String?
+  placeholder String?
+  order       Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  @@map("ai_settings")
+}

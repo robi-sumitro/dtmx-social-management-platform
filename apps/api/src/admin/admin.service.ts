@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { FeatureFlagService } from '../features/feature-flag.service';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { PaymentsService } from '../payments/payments.service';
+import { AISettingsService } from '../ai/ai-settings.service';
 
 @Injectable()
 export class AdminService {
@@ -12,6 +13,7 @@ export class AdminService {
     private readonly flags: FeatureFlagService,
     private readonly subs: SubscriptionsService,
     private readonly payments: PaymentsService,
+    private readonly aiSettings: AISettingsService,
   ) {}
 
   // ---------- Dashboard ----------
@@ -165,5 +167,13 @@ export class AdminService {
   }
   setFlag(key: string, enabled: boolean) {
     return this.flags.set(key, enabled);
+  }
+
+  // ---------- AI settings ----------
+  listAiSettings() {
+    return this.aiSettings.findAll();
+  }
+  saveAiSetting(key: string, value: string) {
+    return this.aiSettings.upsert(key, value);
   }
 }

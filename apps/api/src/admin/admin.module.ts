@@ -4,9 +4,10 @@ import { AdminController } from './admin.controller';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { SecurityModule } from '../common/security.module';
+import { AIModule } from '../ai/ai.module';
 
 @Module({
-  imports: [SubscriptionsModule, PaymentsModule, SecurityModule],
+  imports: [SubscriptionsModule, PaymentsModule, SecurityModule, AIModule],
   controllers: [AdminController],
   providers: [AdminService],
 })

@@ -1,0 +1,38 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dtmx_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dtmx
+      POSTGRES_PASSWORD: dtmx
+      POSTGRES_DB: dtmx
+    ports:
+      - "5432:5432"
+    volumes:
+      - dtmx_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dtmx"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: dtmx_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - dtmx_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  dtmx_pgdata:
+  dtmx_redisdata:

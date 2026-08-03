@@ -1,0 +1,118 @@
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { FeatureFlagService } from '../features/feature-flag.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { AIService } from '../ai/ai.service';
+import { BulkProcessor } from '../queue/bulk.processor';
+
+@Injectable()
+export class InboxService {
+  private readonly logger = new Logger(InboxService.name);
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly ai: AIService,
+    private readonly flags: FeatureFlagService,
+    private readonly bulk: BulkProcessor,
+  ) {}
+
+  async list(userId: string, filters: { status?: string; accountId?: string; page?: number; limit?: number }) {
+    await this.flags.assertEnabled('inbox');
+    const page = filters.page || 1;
+    const limit = filters.limit || 20;
+    const where: any = { userId };
+    if (filters.status) where.status = filters.status;
+    if (filters.accountId) where.accountId = filters.accountId;
+
+    const [items, total] = await Promise.all([
+      this.prisma.inboxItem.findMany({
+        where,
+        include: { account: true },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * limit,
+        take: limit,
+      }),
+      this.prisma.inboxItem.count({ where }),
+    ]);
+    return { items, total, page, limit };
+  }
+
+  async reply(userId: string, inboxId: string, text: string, useAI?: boolean) {
+    const item = await this.prisma.inboxItem.findFirst({ where: { id: inboxId, userId } });
+    if (!item) throw new NotFoundException('Inbox item tidak ditemukan');
+
+    let replyContent = text;
+    let aiUsed = false;
+
+    if (useAI) {
+      await this.flags.assertEnabled('ai_replies');
+      const result = await this.consumeQuota(userId, item, text);
+      replyContent = result;
+      aiUsed = true;
+    }
+    if (!replyContent) throw new BadRequestException('Konten balasan kosong');
+
+    await this.prisma.inboxItem.update({
+      where: { id: inboxId },
+      data: { status: 'replied', repliedAt: new Date() },
+    });
+    return { inboxId, status: 'replied', replyContent, aiUsed };
+  }
+
+  async autoReply(userId: string, inboxId: string) {
+    const item = await this.prisma.inboxItem.findFirst({ where: { id: inboxId, userId } });
+    if (!item) throw new NotFoundException('Inbox item tidak ditemukan');
+
+    const rule = await this.prisma.autoReplyRule.findFirst({
+      where: { userId, enabled: true, useAI: true },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    const prompt =
+      (rule?.aiPrompt || 'Balas dengan nada profesional dan ramah. Konten pesan:\n') +
+      `"${item.content || item.authorName || ''}"`;
+
+    const reply = await this.consumeQuota(userId, item, prompt);
+    await this.prisma.inboxItem.update({
+      where: { id: inboxId },
+      data: { status: 'replied', repliedAt: new Date() },
+    });
+    return { inboxId, status: 'replied', replyContent: reply };
+  }
+
+  private async consumeQuota(userId: string, item: any, prompt: string): Promise<string> {
+    const sub = await this.prisma.subscription.findFirst({
+      where: { userId, status: 'active' },
+      include: { plan: true },
+    });
+    const quota = sub?.plan?.aiPerMonth || 0;
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+    const used = await this.prisma.aiUsage.count({ where: { userId, createdAt: { gte: since } } });
+    if (used >= quota) {
+      throw new BadRequestException('Quota AI bulanan habis. Upgrade paket atau isi ulang kuota.');
+    }
+
+    const result = await this.ai.complete(prompt, { temperature: 0.6 });
+    await this.prisma.aiUsage.create({
+      data: {
+        userId,
+        feature: 'auto_reply',
+        provider: this.ai.activeProvider,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
+        prompt: prompt.slice(0, 2000),
+        result: result.content.slice(0, 5000),
+        accountId: item.accountId,
+      },
+    });
+    // also enqueue a provider API reply
+    await this.bulk.enqueueReply({ inboxId: item.id, accountId: item.accountId, text: result.content });
+    return result.content;
+  }
+
+  async mark(userId: string, id: string, status: string) {
+    return this.prisma.inboxItem.update({
+      where: { id },
+      data: { status },
+    });
+  }
+}

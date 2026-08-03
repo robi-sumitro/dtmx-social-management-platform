@@ -6,6 +6,7 @@ import { EmailProcessor } from './processors/email.processor';
 import { RepliesProcessor } from './processors/replies.processor';
 import { PublishingProcessor } from './processors/publishing.processor';
 import { PlatformsModule } from '../platforms/platforms.module';
+import { EmailModule } from '../auth/email.module';
 
 const connection = (config: ConfigService) => ({
   host: config.get<string>('REDIS_HOST', 'localhost'),
@@ -30,6 +31,7 @@ const connection = (config: ConfigService) => ({
       { name: 'sync' },
     ),
     PlatformsModule,
+    EmailModule,
   ],
   providers: [BulkProcessor, EmailProcessor, RepliesProcessor, PublishingProcessor],
   exports: [BulkProcessor],

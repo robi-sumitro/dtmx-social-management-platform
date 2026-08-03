@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Zap,
   Bot,
+  User as UserIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -41,12 +42,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const headerMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setUserMenuOpen(false);
+      }
+      if (headerMenuRef.current && !headerMenuRef.current.contains(e.target as Node)) {
+        setHeaderMenuOpen(false);
       }
     };
     document.addEventListener('click', onClick);
@@ -195,20 +201,56 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="flex items-center gap-2">
             <NotificationBell />
-            <Link
-              to="/app/posts/new"
-              className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-3.5 py-2 text-sm font-semibold text-white shadow-glow transition hover:brightness-110"
-            >
-              <span className="hidden sm:inline">Buat Postingan</span>
-              <span className="sm:hidden">+</span>
-            </Link>
-            <button
-              onClick={() => setUserMenuOpen((v) => !v)}
-              className="rounded-full ring-1 ring-slate-200 transition hover:ring-brand-300"
-              aria-label="Menu pengguna"
-            >
-              <Avatar name={user?.fullName || user?.username || user?.email} src={user?.avatar} size="sm" />
-            </button>
+            <div className="relative" ref={headerMenuRef}>
+              <button
+                onClick={() => setHeaderMenuOpen((v) => !v)}
+                className="flex items-center gap-2 rounded-full py-1 pl-1 pr-2 ring-1 ring-slate-200 transition hover:ring-brand-300"
+                aria-label="Menu pengguna"
+              >
+                <Avatar name={user?.fullName || user?.username || user?.email} src={user?.avatar} size="sm" />
+                <span className="hidden text-sm font-medium text-slate-700 sm:block">
+                  {user?.fullName || user?.username}
+                </span>
+                <ChevronRight
+                  className={cn('h-4 w-4 text-slate-400 transition-transform', headerMenuOpen && 'rotate-90')}
+                />
+              </button>
+              {headerMenuOpen && (
+                <div className="absolute right-0 top-full mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1.5 shadow-cardHover animate-scale-in">
+                  <div className="px-3 py-2">
+                    <p className="truncate text-sm font-semibold text-slate-900">
+                      {user?.fullName || user?.username || user?.email}
+                    </p>
+                    <p className="truncate text-xs text-slate-500">{user?.email}</p>
+                  </div>
+                  <div className="my-1 h-px bg-slate-100" />
+                  <Link
+                    to="/app/settings"
+                    onClick={() => setHeaderMenuOpen(false)}
+                    className="flex items-center gap-2 px-3.5 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                  >
+                    <UserIcon className="h-4 w-4" />
+                    Profil
+                  </Link>
+                  <Link
+                    to="/app/settings"
+                    onClick={() => setHeaderMenuOpen(false)}
+                    className="flex items-center gap-2 px-3.5 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                  >
+                    <Settings className="h-4 w-4" />
+                    Pengaturan
+                  </Link>
+                  <div className="my-1 h-px bg-slate-100" />
+                  <button
+                    onClick={handleLogout}
+                    className="flex w-full items-center gap-2 px-3.5 py-2 text-left text-sm text-rose-600 transition hover:bg-rose-50"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Keluar
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </header>
         <main className="px-4 py-6 sm:px-6 lg:px-8">{children}</main>

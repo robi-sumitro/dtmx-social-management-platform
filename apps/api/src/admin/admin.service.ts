@@ -81,6 +81,11 @@ export class AdminService {
   async toggleUser(id: string) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException('User tidak ditemukan');
+
+    if (user.role === 'admin' && user.isActive) {
+      throw new BadRequestException('Tidak dapat menonaktifkan akun admin yang sedang aktif');
+    }
+
     return this.prisma.user.update({ where: { id }, data: { isActive: !user.isActive } });
   }
 

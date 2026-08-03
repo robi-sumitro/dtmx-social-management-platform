@@ -3,7 +3,7 @@ import axios from 'axios';
 import { SocialAccount } from '@prisma/client';
 import { PlatformAdapter, PlatformResult, PublishContext, ReplyContext } from '../platform.types';
 
-const GRAPH = 'https://graph.facebook.com/v21.0';
+const GRAPH = 'https://graph.facebook.com/v24.0';
 
 /**
  * Facebook provider (Graph API).

@@ -14,6 +14,7 @@ export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
       callbackURL: `${getAppBaseUrl(config)}/api/auth/facebook/callback`,
       scope: ['email', 'public_profile'],
       profileFields: ['id', 'emails', 'name', 'displayName', 'photos'],
+      graphAPIVersion: 'v24.0',
     });
   }
 

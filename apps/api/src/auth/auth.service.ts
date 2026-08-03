@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import axios from 'axios';
 import * as bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -106,22 +107,30 @@ export class AuthService {
     return this.issueTokens(user);
   }
 
-  googleValidate(profile) {
-    return this.oauthLogin('google', {
+  googleValidate(profile, accessToken?: string) {
+    const result = this.oauthLogin('google', {
       email: profile.emails?.[0]?.value,
       name: profile.displayName,
       avatar: profile.photos?.[0]?.value,
       id: profile.id,
     });
+    return result.then(async (r) => ({
+      ...r,
+      channels: await this.detectGoogleChannels(accessToken ?? ''),
+    }));
   }
 
-  facebookValidate(profile) {
-    return this.oauthLogin('facebook', {
+  facebookValidate(profile, accessToken?: string) {
+    const result = this.oauthLogin('facebook', {
       email: profile.emails?.[0]?.value,
       name: profile.displayName,
       avatar: profile.photos?.[0]?.value,
       id: profile.id,
     });
+    return result.then(async (r) => ({
+      ...r,
+      channels: await this.detectFacebookPages(accessToken ?? ''),
+    }));
   }
 
   async forgotPassword(email: string) {
@@ -171,6 +180,50 @@ export class AuthService {
       refreshToken,
       user: { id: user.id, email: user.email, role: user.role },
     };
+  }
+
+  private async detectGoogleChannels(accessToken: string): Promise<
+    { id: string; name: string; avatar?: string; followersCount: number }[]
+  > {
+    if (!accessToken) return [];
+    try {
+      const { data } = await axios.get('https://www.googleapis.com/youtube/v3/channels', {
+        params: { part: 'snippet,statistics', mine: true },
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      return (data?.items ?? []).map((c: any) => ({
+        provider: 'youtube',
+        id: c.id,
+        name: c.snippet?.title || 'YouTube Channel',
+        avatar: c.snippet?.thumbnails?.default?.url,
+        followersCount: Number(c.statistics?.subscriberCount) || 0,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  private async detectFacebookPages(accessToken: string): Promise<
+    { id: string; name: string; avatar?: string; followersCount: number }[]
+  > {
+    if (!accessToken) return [];
+    try {
+      const { data } = await axios.get('https://graph.facebook.com/v24.0/me/accounts', {
+        params: {
+          access_token: accessToken,
+          fields: 'id,name,picture.type(large),fan_count',
+        },
+      });
+      return (data?.data ?? []).map((p: any) => ({
+        provider: 'facebook',
+        id: p.id,
+        name: p.name,
+        avatar: p.picture?.data?.url,
+        followersCount: p.fan_count || 0,
+      }));
+    } catch {
+      return [];
+    }
   }
 
   async refresh(refreshToken: string) {

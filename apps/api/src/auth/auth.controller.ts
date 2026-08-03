@@ -111,6 +111,9 @@ export class AuthController {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
     });
+    if (Array.isArray(tokens.channels)) {
+      query.set('channels', JSON.stringify(tokens.channels));
+    }
     res.redirect(`${front}/auth/oauth/callback?${query.toString()}`);
   }
 }

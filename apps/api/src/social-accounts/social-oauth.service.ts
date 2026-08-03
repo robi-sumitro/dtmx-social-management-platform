@@ -1,0 +1,181 @@
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
+import axios from 'axios';
+import { SocialAccountsService } from './social-accounts.service';
+import { getAppBaseUrl, getFrontendUrl } from '../common/app-url';
+
+const FB_GRAPH = 'https://graph.facebook.com/v24.0';
+const FB_DIALOG = 'https://www.facebook.com/v24.0/dialog/oauth';
+const GOOGLE_OAUTH = 'https://accounts.google.com/o/oauth2/v2/auth';
+const GOOGLE_TOKEN = 'https://oauth2.googleapis.com/token';
+const YOUTUBE_API = 'https://www.googleapis.com/youtube/v3';
+
+const CONNECT_SCOPES: Record<string, string> = {
+  facebook: ['pages_show_list', 'pages_manage_posts', 'pages_read_engagement'].join(','),
+  youtube: [
+    'https://www.googleapis.com/auth/youtube.readonly',
+    'https://www.googleapis.com/auth/youtube.upload',
+  ].join(' '),
+};
+
+/**
+ * OAuth "connect account" flow (independent from login).
+ * - facebook (+instagram): page management scopes; callback imports FB pages and any linked IG business account.
+ * - youtube: channel read/publish scopes; callback imports the YouTube channel.
+ */
+@Injectable()
+export class SocialOAuthService {
+  private readonly logger = new Logger(SocialOAuthService.name);
+
+  constructor(
+    private readonly config: ConfigService,
+    private readonly jwt: JwtService,
+    private readonly social: SocialAccountsService,
+  ) {}
+
+  getAuthorizeUrl(provider: string, userId: string): string {
+    const base = getAppBaseUrl(this.config);
+    const state = this.jwt.sign({ sub: userId }, { expiresIn: '15m' });
+
+    if (provider === 'youtube') {
+      const clientId = this.config.get<string>('GOOGLE_CLIENT_ID', '');
+      if (!clientId) throw new BadRequestException('Google OAuth belum dikonfigurasi');
+      const params = new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: `${base}/api/social-accounts/auth/youtube/callback`,
+        response_type: 'code',
+        scope: CONNECT_SCOPES.youtube,
+        access_type: 'offline',
+        prompt: 'consent',
+        state,
+      });
+      return `${GOOGLE_OAUTH}?${params.toString()}`;
+    }
+
+    if (provider === 'facebook' || provider === 'instagram') {
+      const clientId = this.config.get<string>('FACEBOOK_APP_ID', '');
+      if (!clientId) throw new BadRequestException('Facebook OAuth belum dikonfigurasi');
+      const params = new URLSearchParams({
+        client_id: clientId,
+        redirect_uri: `${base}/api/social-accounts/auth/facebook/callback`,
+        response_type: 'code',
+        scope: CONNECT_SCOPES.facebook,
+        state,
+      });
+      return `${FB_DIALOG}?${params.toString()}`;
+    }
+
+    throw new BadRequestException('Provider tidak mendukung OAuth connect');
+  }
+
+  async handleCallback(provider: string, code: string, state: string): Promise<string> {
+    const base = getAppBaseUrl(this.config);
+    let userId: string;
+    try {
+      const payload = this.jwt.verify(state);
+      userId = payload.sub;
+    } catch {
+      throw new BadRequestException('Sesi OAuth tidak valid, silakan coba lagi');
+    }
+
+    if (provider === 'youtube') return this.handleYoutube(userId, code, base);
+    if (provider === 'facebook') return this.handleFacebook(userId, code, base);
+    throw new BadRequestException('Provider tidak didukung');
+  }
+
+  private async handleFacebook(userId: string, code: string, base: string) {
+    const clientId = this.config.get<string>('FACEBOOK_APP_ID', '');
+    const clientSecret = this.config.get<string>('FACEBOOK_APP_SECRET', '');
+    const redirectUri = `${base}/api/social-accounts/auth/facebook/callback`;
+
+    const { data: tok } = await axios.get(`${FB_GRAPH}/oauth/access_token`, {
+      params: { client_id: clientId, client_secret: clientSecret, code, redirect_uri: redirectUri },
+    });
+    const userToken = tok.access_token as string;
+
+    const { data: res } = await axios.get(`${FB_GRAPH}/me/accounts`, {
+      params: {
+        access_token: userToken,
+        fields: 'id,name,link,picture.type(large),access_token,fan_count,instagram_business_account{id,username,profile_picture_url}',
+      },
+    });
+    const pages: any[] = res?.data ?? [];
+
+    let connected = 0;
+    for (const page of pages) {
+      const pageToken = page.access_token || userToken;
+      await this.social.connect(userId, {
+        provider: 'facebook',
+        accountType: 'facebook_page',
+        accountName: page.name,
+        platformId: page.id,
+        accessToken: pageToken,
+        avatarUrl: page.picture?.data?.url,
+        followersCount: page.fan_count || 0,
+      });
+      connected += 1;
+
+      const ig = page.instagram_business_account;
+      if (ig?.id) {
+        await this.social.connect(userId, {
+          provider: 'instagram',
+          accountType: 'instagram',
+          accountName: ig.username || 'Instagram',
+          platformId: ig.id,
+          instagramId: ig.id,
+          accessToken: pageToken,
+          avatarUrl: ig.profile_picture_url,
+        });
+        connected += 1;
+      }
+    }
+
+    this.logger.log(`User ${userId} connected ${connected} FB/IG accounts`);
+    if (connected === 0) {
+      return `${getFrontendUrl(this.config)}/app/accounts?error=${encodeURIComponent('Tidak ada halaman Facebook yang bisa dihubungkan pada akun ini.')}`;
+    }
+    return `${getFrontendUrl(this.config)}/app/accounts?connected=${connected}`;
+  }
+
+  private async handleYoutube(userId: string, code: string, base: string) {
+    const clientId = this.config.get<string>('GOOGLE_CLIENT_ID', '');
+    const clientSecret = this.config.get<string>('GOOGLE_CLIENT_SECRET', '');
+    const redirectUri = `${base}/api/social-accounts/auth/youtube/callback`;
+
+    const { data: tok } = await axios.post(
+      GOOGLE_TOKEN,
+      new URLSearchParams({
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+      }).toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+    );
+    const accessToken = tok.access_token as string;
+
+    const { data: ch } = await axios.get(`${YOUTUBE_API}/channels`, {
+      params: { part: 'snippet,statistics', mine: true },
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const channel = ch?.items?.[0];
+    if (!channel) {
+      throw new BadRequestException('Tidak ada channel YouTube pada akun Google ini');
+    }
+
+    await this.social.connect(userId, {
+      provider: 'youtube',
+      accountType: 'youtube_channel',
+      accountName: channel.snippet?.title || 'YouTube Channel',
+      platformId: channel.id,
+      accessToken,
+      avatarUrl: channel.snippet?.thumbnails?.default?.url,
+      followersCount: Number(channel.statistics?.subscriberCount) || 0,
+    });
+
+    this.logger.log(`User ${userId} connected YouTube channel ${channel.id}`);
+    return `${getFrontendUrl(this.config)}/app/accounts?connected=1`;
+  }
+}

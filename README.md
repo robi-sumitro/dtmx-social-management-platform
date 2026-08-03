@@ -117,22 +117,31 @@ Saat membuat aplikasi OAuth di **Google Cloud Console** / **Meta for Developers*
 | Google | `GET /api/auth/google` | `{API_URL}/api/auth/google/callback` |
 | Facebook | `GET /api/auth/facebook` | `{API_URL}/api/auth/facebook/callback` |
 
+Selain login, **menghubungkan akun sosial** (Halaman Facebook + Instagram Business, dan channel YouTube) memakai OAuth terpisah di route `social-accounts/auth/:provider`. Callback berikut juga wajib didaftarkan di dashboard platform:
+
+| Platform | Connect route | Callback URL (Authorized redirect URI) |
+| --- | --- | --- |
+| Google (YouTube) | `GET /api/social-accounts/auth/youtube/url` | `{API_URL}/api/social-accounts/auth/youtube/callback` |
+| Facebook (Pages + IG) | `GET /api/social-accounts/auth/facebook/url` | `{API_URL}/api/social-accounts/auth/facebook/callback` |
+
 Default lokal (dengan `API_URL=http://localhost:3000`):
 
-- Google: `http://localhost:3000/api/auth/google/callback`
-- Facebook: `http://localhost:3000/api/auth/facebook/callback`
+- Google login: `http://localhost:3000/api/auth/google/callback`
+- Facebook login: `http://localhost:3000/api/auth/facebook/callback`
+- YouTube connect: `http://localhost:3000/api/social-accounts/auth/youtube/callback`
+- Facebook connect: `http://localhost:3000/api/social-accounts/auth/facebook/callback`
 
 ### Di produksi (Railway)
 
 - `API_URL` otomatis terisi dari domain Railway (`RAILWAY_PUBLIC_DOMAIN`) jika tidak diset. Contoh: domain `https://dtmx-social-management-platform-production.up.railway.app` → callback Google `https://dtmx-social-management-platform-production.up.railway.app/api/auth/google/callback`.
 - `FRONTEND_URL` juga otomatis memakai domain yang sama jika tidak diset (karena SPA di-serve oleh API di satu domain). Bila frontend terpisah, set `FRONTEND_URL` ke domain frontend.
 - **Penting:** daftarkan URL callback **persis** seperti di atas (tanpa trailing slash, tanpa beda huruf) di dashboard platform:
-  - **Google Cloud Console** → `APIs & Services` → `Credentials` → pilih *OAuth 2.0 Client ID* → bagian **Authorized redirect URIs** → tambahkan `{APP_URL}/api/auth/google/callback`, lalu simpan.
-  - **Meta for Developers** → *App settings* → *Facebook Login* → **Valid OAuth Redirect URIs** → tambahkan `{APP_URL}/api/auth/facebook/callback`.
+  - **Google Cloud Console** → `APIs & Services` → `Credentials` → pilih *OAuth 2.0 Client ID* → bagian **Authorized redirect URIs** → tambahkan `{APP_URL}/api/auth/google/callback` **dan** `{APP_URL}/api/social-accounts/auth/youtube/callback`, lalu simpan.
+  - **Meta for Developers** → *App settings* → *Facebook Login* → **Valid OAuth Redirect URIs** → tambahkan `{APP_URL}/api/auth/facebook/callback` **dan** `{APP_URL}/api/social-accounts/auth/facebook/callback`.
 
 > Error `redirect_uri_mismatch` (400) terjadi saat URI yang dikirim ke Google tidak cocok dengan daftar **Authorized redirect URIs**. Pastikan string di console benar-benar identik dengan yang terkirim. Setelah login, browser akan diarahkan ke `{FRONTEND_URL}/auth/oauth/callback` (route SPA, tidak perlu didaftarkan di platform).
 
-> **TikTok & YouTube tidak memakai OAuth login** — keduanya hanya provider publish konten. Token (scope `video.publish` untuk TikTok, upload YouTube) dimasukkan manual via `POST /social-accounts/connect`, jadi tidak ada callback URL yang perlu didaftarkan.
+> **Connect akun (OAuth):** Saat login via Google/Facebook, sistem **mengecek** apakah akun memiliki channel YouTube / halaman Facebook lalu menawarkan menghubungkannya. Proses connect ini meminta scope tambahan (Facebook `pages_show_list`, `pages_manage_posts`, `pages_read_engagement`; Google `youtube.readonly` + `youtube.upload`) dan menyimpan token halaman/channel untuk keperluan publish. **TikTok** tidak punya OAuth login/connect — token (scope `video.publish`) dimasukkan manual via `POST /social-accounts/connect`.
 
 ### Data awal (otomatis dibuat saat deploy)
 

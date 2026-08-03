@@ -12,17 +12,17 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       clientID: config.get<string>('GOOGLE_CLIENT_ID', ''),
       clientSecret: config.get<string>('GOOGLE_CLIENT_SECRET', ''),
       callbackURL: `${getAppBaseUrl(config)}/api/auth/google/callback`,
-      scope: ['email', 'profile'],
+      scope: ['email', 'profile', 'https://www.googleapis.com/auth/youtube.readonly'],
     });
   }
 
   async validate(
-    _at: string,
+    accessToken: string,
     _rt: string,
     profile: any,
     done: VerifyCallback,
   ): Promise<any> {
-    const result = await this.auth.googleValidate(profile);
+    const result = await this.auth.googleValidate(profile, accessToken);
     done(null, result);
   }
 }

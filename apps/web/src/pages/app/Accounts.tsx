@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Share2,
   Plus,
@@ -10,6 +11,7 @@ import {
   Globe,
   Check,
   AlertTriangle,
+  Lock,
 } from 'lucide-react';
 import { useFetch } from '@/lib/useApi';
 import { api } from '@/lib/api';
@@ -42,10 +44,12 @@ const ACCOUNT_TYPES: Record<string, { value: string; label: string }[]> = {
 
 export function Accounts() {
   const toast = useToast();
+  const [params, setParams] = useSearchParams();
   const [connectOpen, setConnectOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<SocialAccount | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showManual, setShowManual] = useState(false);
 
   const { data, loading, refetch } = useFetch<SocialAccount[]>(() => api.get('/social-accounts'));
   const usage = useFetch<UsageResponse>(() => api.get('/subscriptions/usage'));
@@ -66,12 +70,41 @@ export function Accounts() {
     tokenExpiresAt: '',
   });
 
+  useEffect(() => {
+    const connected = params.get('connected');
+    const error = params.get('error');
+    if (connected) {
+      toast.success('Akun terhubung', `${connected} akun berhasil dihubungkan.`);
+    } else if (error) {
+      toast.error('Gagal menghubungkan', error);
+    }
+    if (connected || error) {
+      setParams({}, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const resetForm = () =>
     setForm({ provider: 'facebook', accountName: '', platformId: '', accessToken: '', instagramId: '', avatarUrl: '', followersCount: '', tokenExpiresAt: '' });
 
   const openConnect = () => {
     resetForm();
+    setShowManual(false);
     setConnectOpen(true);
+  };
+
+  const oauthProvider = form.provider === 'instagram' ? 'facebook' : form.provider;
+  const canOAuth = oauthProvider === 'facebook' || oauthProvider === 'youtube';
+
+  const connectOAuth = async () => {
+    setSaving(true);
+    try {
+      const { url } = await api.get<{ url: string }>(`/social-accounts/auth/${oauthProvider}/url`);
+      window.location.assign(url);
+    } catch (err) {
+      toast.error('Gagal memulai OAuth', err instanceof Error ? err.message : 'Terjadi kesalahan');
+      setSaving(false);
+    }
   };
 
   const connect = async () => {
@@ -231,15 +264,22 @@ export function Accounts() {
         open={connectOpen}
         onClose={() => setConnectOpen(false)}
         title="Hubungkan Akun Sosial"
-        description="Isi kredensial akun yang ingin dihubungkan."
+        description="Pilih platform lalu hubungkan via OAuth atau isi kredensial secara manual."
         size="lg"
         footer={
           <div className="flex justify-end gap-2.5">
             <Button variant="secondary" onClick={() => setConnectOpen(false)}>Batal</Button>
-            <Button onClick={() => void connect()} loading={saving}>
-              <Check className="h-4 w-4" />
-              Hubungkan
-            </Button>
+            {!canOAuth || showManual ? (
+              <Button onClick={() => void connect()} loading={saving}>
+                <Check className="h-4 w-4" />
+                Hubungkan
+              </Button>
+            ) : (
+              <Button onClick={() => void connectOAuth()} loading={saving}>
+                <Lock className="h-4 w-4" />
+                Hubungkan via {form.provider === 'youtube' ? 'Google' : 'Facebook'}
+              </Button>
+            )}
           </div>
         }
       >
@@ -263,15 +303,55 @@ export function Accounts() {
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Input label="Nama Akun" placeholder="Nama halaman / akun" value={form.accountName} onChange={(e) => setForm((f) => ({ ...f, accountName: e.target.value }))} required />
-            <Input label="ID Platform" placeholder="Page ID / user ID / channel ID" value={form.platformId} onChange={(e) => setForm((f) => ({ ...f, platformId: e.target.value }))} required />
-            <Input label="Access Token" placeholder="Opsional" value={form.accessToken} onChange={(e) => setForm((f) => ({ ...f, accessToken: e.target.value }))} />
-            <Input label="Instagram ID" placeholder="Opsional" value={form.instagramId} onChange={(e) => setForm((f) => ({ ...f, instagramId: e.target.value }))} />
-            <Input label="URL Avatar" placeholder="https://..." value={form.avatarUrl} onChange={(e) => setForm((f) => ({ ...f, avatarUrl: e.target.value }))} />
-            <Input label="Followers" type="number" placeholder="0" value={form.followersCount} onChange={(e) => setForm((f) => ({ ...f, followersCount: e.target.value }))} />
-            <Input label="Kedaluwarsa Token" type="datetime-local" value={form.tokenExpiresAt} onChange={(e) => setForm((f) => ({ ...f, tokenExpiresAt: e.target.value }))} />
-          </div>
+          {canOAuth && (
+            <div className="rounded-xl border border-brand-100 bg-brand-50/50 p-4">
+              <div className="flex items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-100 text-brand-600">
+                  <Lock className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">
+                    Hubungkan dengan {form.provider === 'youtube' ? 'Google' : 'Facebook'}
+                  </p>
+                  <p className="mt-0.5 text-xs leading-relaxed text-slate-500">
+                    {form.provider === 'youtube'
+                      ? 'Kamu akan diarahkan ke Google untuk memilih channel YouTube milikmu.'
+                      : form.provider === 'instagram'
+                        ? 'Pilih halaman Facebook yang terhubung dengan akun Instagram (Business).'
+                        : 'Kamu akan diarahkan ke Facebook untuk memilih halaman yang kamu kelola.'}
+                  </p>
+                  {!canConnect && (
+                    <p className="mt-2 flex items-center gap-1 text-xs font-medium text-amber-600">
+                      <AlertTriangle className="h-3 w-3" /> Batas paket tercapai — upgrade paket terlebih dahulu.
+                    </p>
+                  )}
+                </div>
+              </div>
+              <Button className="mt-3 w-full" onClick={() => void connectOAuth()} loading={saving} disabled={!canConnect}>
+                {form.provider === 'youtube' ? <Youtube className="h-4 w-4" /> : <Facebook className="h-4 w-4" />}
+                Lanjut ke {form.provider === 'youtube' ? 'Google' : 'Facebook'}
+              </Button>
+              <button
+                type="button"
+                onClick={() => setShowManual((s) => !s)}
+                className="mt-3 text-xs font-medium text-brand-600 hover:text-brand-700"
+              >
+                {showManual ? 'Sembunyikan isi manual' : 'Isi kredensial secara manual (lanjutan)'}
+              </button>
+            </div>
+          )}
+
+          {(!canOAuth || showManual) && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input label="Nama Akun" placeholder="Nama halaman / akun" value={form.accountName} onChange={(e) => setForm((f) => ({ ...f, accountName: e.target.value }))} required />
+              <Input label="ID Platform" placeholder="Page ID / user ID / channel ID" value={form.platformId} onChange={(e) => setForm((f) => ({ ...f, platformId: e.target.value }))} required />
+              <Input label="Access Token" placeholder="Opsional" value={form.accessToken} onChange={(e) => setForm((f) => ({ ...f, accessToken: e.target.value }))} />
+              <Input label="Instagram ID" placeholder="Opsional" value={form.instagramId} onChange={(e) => setForm((f) => ({ ...f, instagramId: e.target.value }))} />
+              <Input label="URL Avatar" placeholder="https://..." value={form.avatarUrl} onChange={(e) => setForm((f) => ({ ...f, avatarUrl: e.target.value }))} />
+              <Input label="Followers" type="number" placeholder="0" value={form.followersCount} onChange={(e) => setForm((f) => ({ ...f, followersCount: e.target.value }))} />
+              <Input label="Kedaluwarsa Token" type="datetime-local" value={form.tokenExpiresAt} onChange={(e) => setForm((f) => ({ ...f, tokenExpiresAt: e.target.value }))} />
+            </div>
+          )}
         </div>
       </Modal>
 

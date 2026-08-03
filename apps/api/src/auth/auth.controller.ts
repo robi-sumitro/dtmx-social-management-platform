@@ -16,6 +16,7 @@ import { AuthService } from './auth.service';
 import { RegisterDto, LoginDto, ForgotPasswordDto, ResetPasswordDto, RefreshTokenDto } from './dto/auth.dto';
 import { Public, CurrentUser } from '../common/decorators/auth.decorators';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { getAppBaseUrl, getFrontendUrl } from '../common/app-url';
 
 @Controller('auth')
 export class AuthController {
@@ -63,6 +64,23 @@ export class AuthController {
   }
 
   @Public()
+  @Get('callback-urls')
+  callbackUrls() {
+    return {
+      appBaseUrl: getAppBaseUrl(this.config),
+      frontendUrl: getFrontendUrl(this.config),
+      google: {
+        configured: Boolean(this.config.get('GOOGLE_CLIENT_ID')),
+        callbackUrl: `${getAppBaseUrl(this.config)}/api/auth/google/callback`,
+      },
+      facebook: {
+        configured: Boolean(this.config.get('FACEBOOK_APP_ID')),
+        callbackUrl: `${getAppBaseUrl(this.config)}/api/auth/facebook/callback`,
+      },
+    };
+  }
+
+  @Public()
   @Get('google')
   @UseGuards(AuthGuard('google'))
   google() {}
@@ -88,7 +106,7 @@ export class AuthController {
 
   private handleOauthRedirect(req: any, res: any) {
     const tokens = req.user;
-    const front = this.config.get<string>('FRONTEND_URL', 'http://localhost:4200');
+    const front = getFrontendUrl(this.config);
     const query = new URLSearchParams({
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,

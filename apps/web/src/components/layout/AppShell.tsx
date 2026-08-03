@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   FileText,
@@ -191,13 +191,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <a
-              href="/app/posts/new"
+            <Link
+              to="/app/posts/new"
               className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-3.5 py-2 text-sm font-semibold text-white shadow-glow transition hover:brightness-110"
             >
               <span className="hidden sm:inline">Buat Postingan</span>
               <span className="sm:hidden">+</span>
-            </a>
+            </Link>
             <button
               onClick={() => setUserMenuOpen((v) => !v)}
               className="rounded-full ring-1 ring-slate-200 transition hover:ring-brand-300"

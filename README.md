@@ -122,7 +122,15 @@ Default lokal (dengan `API_URL=http://localhost:3000`):
 - Google: `http://localhost:3000/api/auth/google/callback`
 - Facebook: `http://localhost:3000/api/auth/facebook/callback`
 
-> Di produksi ganti `{API_URL}` dengan domain API (mis. `https://api.dtmx.app`) pada `.env`, lalu tambahkan URL yang sama di dashboard masing-masing platform. Jangan lupa isi `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` dan `FACEBOOK_APP_ID`/`FACEBOOK_APP_SECRET`. Setelah login, browser akan diarahkan ke `{FRONTEND_URL}/auth/oauth/callback` (route SPA, tidak perlu didaftarkan di platform).
+### Di produksi (Railway)
+
+- `API_URL` otomatis terisi dari domain Railway (`RAILWAY_PUBLIC_DOMAIN`) jika tidak diset. Contoh: domain `https://dtmx-social-management-platform-production.up.railway.app` → callback Google `https://dtmx-social-management-platform-production.up.railway.app/api/auth/google/callback`.
+- `FRONTEND_URL` juga otomatis memakai domain yang sama jika tidak diset (karena SPA di-serve oleh API di satu domain). Bila frontend terpisah, set `FRONTEND_URL` ke domain frontend.
+- **Penting:** daftarkan URL callback **persis** seperti di atas (tanpa trailing slash, tanpa beda huruf) di dashboard platform:
+  - **Google Cloud Console** → `APIs & Services` → `Credentials` → pilih *OAuth 2.0 Client ID* → bagian **Authorized redirect URIs** → tambahkan `{APP_URL}/api/auth/google/callback`, lalu simpan.
+  - **Meta for Developers** → *App settings* → *Facebook Login* → **Valid OAuth Redirect URIs** → tambahkan `{APP_URL}/api/auth/facebook/callback`.
+
+> Error `redirect_uri_mismatch` (400) terjadi saat URI yang dikirim ke Google tidak cocok dengan daftar **Authorized redirect URIs**. Pastikan string di console benar-benar identik dengan yang terkirim. Setelah login, browser akan diarahkan ke `{FRONTEND_URL}/auth/oauth/callback` (route SPA, tidak perlu didaftarkan di platform).
 
 > **TikTok & YouTube tidak memakai OAuth login** — keduanya hanya provider publish konten. Token (scope `video.publish` untuk TikTok, upload YouTube) dimasukkan manual via `POST /social-accounts/connect`, jadi tidak ada callback URL yang perlu didaftarkan.
 

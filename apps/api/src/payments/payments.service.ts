@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { getFrontendUrl } from '../common/app-url';
 import { StripeGateway, ManualGateway } from './gateways/payment.gateway';
 import { TripayGateway } from './gateways/payment.gateway';
 import { MidtransGateway, GatewayFactory } from './gateways/midtrans.gateway';
@@ -48,7 +49,7 @@ export class PaymentsService {
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     const ref = `DTMX-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-    const front = this.config.get<string>('FRONTEND_URL', 'http://localhost:4200');
+    const front = getFrontendUrl(this.config);
 
     const payment = await this.prisma.payment.create({
       data: {

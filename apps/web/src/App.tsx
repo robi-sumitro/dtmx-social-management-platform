@@ -3,6 +3,16 @@ import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
 import { PageLoader } from '@/components/ui/Loading';
 import { Landing } from '@/pages/Landing';
+import {
+  AboutPage,
+  BlogPage,
+  CareersPage,
+  DocsPage,
+  ContactPage,
+  PrivacyPage,
+  TermsPage,
+  SecurityPage,
+} from '@/pages/info';
 import { Login } from '@/pages/auth/Login';
 import { Register } from '@/pages/auth/Register';
 import { ForgotPassword } from '@/pages/auth/ForgotPassword';
@@ -50,6 +60,14 @@ export function App() {
       <ScrollToTop />
       <Routes>
         <Route path="/" element={<Landing />} />
+        <Route path="/tentang" element={<AboutPage />} />
+        <Route path="/blog" element={<BlogPage />} />
+        <Route path="/karier" element={<CareersPage />} />
+        <Route path="/dokumentasi" element={<DocsPage />} />
+        <Route path="/hubungi-kami" element={<ContactPage />} />
+        <Route path="/privasi" element={<PrivacyPage />} />
+        <Route path="/syarat" element={<TermsPage />} />
+        <Route path="/keamanan" element={<SecurityPage />} />
         <Route path="/auth/login" element={<Login />} />
         <Route path="/auth/register" element={<Register />} />
         <Route path="/auth/forgot-password" element={<ForgotPassword />} />

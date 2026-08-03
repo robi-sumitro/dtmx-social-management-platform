@@ -89,13 +89,13 @@ const FAQS = [
   { q: 'Apakah data saya aman?', a: 'Ya. Token dienkripsi, koneksi HTTPS, dan kami tidak pernah membagikan data kamu ke pihak ketiga.' },
 ];
 
-function Nav() {
+export function Nav() {
   const [open, setOpen] = useState(false);
   const links = [
-    { href: '#fitur', label: 'Fitur' },
-    { href: '#cara-kerja', label: 'Cara Kerja' },
-    { href: '#harga', label: 'Harga' },
-    { href: '#faq', label: 'FAQ' },
+    { href: '/#fitur', label: 'Fitur' },
+    { href: '/#cara-kerja', label: 'Cara Kerja' },
+    { href: '/#harga', label: 'Harga' },
+    { href: '/#faq', label: 'FAQ' },
   ];
   return (
     <header className="fixed inset-x-0 top-0 z-50 border-b border-slate-200/60 bg-white/70 backdrop-blur-xl">
@@ -170,7 +170,7 @@ function Hero() {
               <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
             </Link>
             <a
-              href="#fitur"
+              href="/#fitur"
               className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-white px-7 py-3.5 text-base font-semibold text-slate-700 ring-1 ring-slate-200 shadow-sm transition hover:bg-slate-50 sm:w-auto"
             >
               Lihat Fitur
@@ -460,7 +460,7 @@ function CTA() {
   );
 }
 
-function Footer() {
+export function Footer() {
   return (
     <footer className="border-t border-slate-200 bg-white">
       <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8">
@@ -472,34 +472,34 @@ function Footer() {
           <div>
             <h4 className="text-sm font-semibold text-slate-900">Produk</h4>
             <ul className="mt-4 space-y-2.5 text-sm text-slate-500">
-              <li><a href="#fitur" className="hover:text-brand-600">Fitur</a></li>
-              <li><a href="#harga" className="hover:text-brand-600">Harga</a></li>
-              <li><a href="#cara-kerja" className="hover:text-brand-600">Cara Kerja</a></li>
+              <li><a href="/#fitur" className="hover:text-brand-600">Fitur</a></li>
+              <li><a href="/#harga" className="hover:text-brand-600">Harga</a></li>
+              <li><a href="/#cara-kerja" className="hover:text-brand-600">Cara Kerja</a></li>
             </ul>
           </div>
           <div>
             <h4 className="text-sm font-semibold text-slate-900">Perusahaan</h4>
             <ul className="mt-4 space-y-2.5 text-sm text-slate-500">
-              <li><a href="#" className="hover:text-brand-600">Tentang</a></li>
-              <li><a href="#" className="hover:text-brand-600">Blog</a></li>
-              <li><a href="#" className="hover:text-brand-600">Karier</a></li>
+              <li><Link to="/tentang" className="hover:text-brand-600">Tentang</Link></li>
+              <li><Link to="/blog" className="hover:text-brand-600">Blog</Link></li>
+              <li><Link to="/karier" className="hover:text-brand-600">Karier</Link></li>
             </ul>
           </div>
           <div>
             <h4 className="text-sm font-semibold text-slate-900">Bantuan</h4>
             <ul className="mt-4 space-y-2.5 text-sm text-slate-500">
-              <li><a href="#faq" className="hover:text-brand-600">FAQ</a></li>
-              <li><a href="#" className="hover:text-brand-600">Dokumentasi</a></li>
-              <li><a href="#" className="hover:text-brand-600">Hubungi Kami</a></li>
+              <li><a href="/#faq" className="hover:text-brand-600">FAQ</a></li>
+              <li><Link to="/dokumentasi" className="hover:text-brand-600">Dokumentasi</Link></li>
+              <li><Link to="/hubungi-kami" className="hover:text-brand-600">Hubungi Kami</Link></li>
             </ul>
           </div>
         </div>
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-slate-100 pt-8 sm:flex-row">
           <p className="text-sm text-slate-400">© {new Date().getFullYear()} DtmX. Seluruh hak cipta dilindungi.</p>
           <div className="flex gap-6 text-sm text-slate-400">
-            <a href="#" className="hover:text-slate-600">Privasi</a>
-            <a href="#" className="hover:text-slate-600">Syarat</a>
-            <a href="#" className="hover:text-slate-600">Keamanan</a>
+            <Link to="/privasi" className="hover:text-slate-600">Privasi</Link>
+            <Link to="/syarat" className="hover:text-slate-600">Syarat</Link>
+            <Link to="/keamanan" className="hover:text-slate-600">Keamanan</Link>
           </div>
         </div>
       </div>

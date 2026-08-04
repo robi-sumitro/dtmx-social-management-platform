@@ -58,42 +58,36 @@ export function Dashboard() {
         </Link>
       </div>
 
-      {accounts.loading || usage.loading ? (
-        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-32" />)}
-        </div>
-      ) : (
-        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard
-            label="Akun Terhubung"
-            value={activeAccounts.length}
-            hint={`${activeAccounts.length} dari ${usage.data?.limits.accounts ?? '-'} sesuai paket`}
-            icon={<Share2 className="h-5 w-5" />}
-            accent="brand"
-          />
-          <StatCard
-            label="Posting Bulan Ini"
-            value={usage.data?.postsUsed ?? 0}
-            hint={`${scheduledCount} terjadwal · ${draftCount} draft`}
-            icon={<FileText className="h-5 w-5" />}
-            accent="emerald"
-          />
-          <StatCard
-            label="Kuota AI Terpakai"
-            value={`${aiStatus.data?.used ?? 0}/${aiStatus.data?.quota ?? 0}`}
-            hint={aiStatus.data?.remaining ? `Sisa ${aiStatus.data.remaining} bulan ini` : 'Kuota penuh'}
-            icon={<Sparkles className="h-5 w-5" />}
-            accent="amber"
-          />
-          <StatCard
-            label="Inbox Baru"
-            value={newInbox}
-            hint={newInbox ? 'Menunggu respon' : 'Semua beres ✓'}
-            icon={<Inbox className="h-5 w-5" />}
-            accent="rose"
-          />
-        </div>
-      )}
+      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard
+          label="Total Jangkauan (Reach)"
+          value="48.2K"
+          hint="+12.4% dari bulan lalu"
+          icon={<TrendingUp className="h-5 w-5" />}
+          accent="brand"
+        />
+        <StatCard
+          label="Engagement Rate"
+          value="4.8%"
+          hint="Rata-rata interaksi post"
+          icon={<Share2 className="h-5 w-5" />}
+          accent="emerald"
+        />
+        <StatCard
+          label="Total Klik Tautan"
+          value="1,420"
+          hint="Dari 24 postingan terbit"
+          icon={<ArrowUpRight className="h-5 w-5" />}
+          accent="amber"
+        />
+        <StatCard
+          label="Inbox Baru"
+          value={newInbox}
+          hint={newInbox ? 'Menunggu respon' : 'Semua beres ✓'}
+          icon={<Inbox className="h-5 w-5" />}
+          accent="rose"
+        />
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">

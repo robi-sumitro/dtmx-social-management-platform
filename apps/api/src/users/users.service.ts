@@ -10,14 +10,14 @@ export class UsersService {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
-        id: true, email: true, username: true, fullName: true, avatar: true, role: true, createdAt: true, quotaAi: true,
+        id: true, email: true, username: true, fullName: true, avatar: true, timezone: true, role: true, createdAt: true, quotaAi: true,
       },
     });
     if (!user) throw new NotFoundException('User tidak ditemukan');
     return user;
   }
 
-  async updateProfile(userId: string, data: { fullName?: string; username?: string; avatar?: string }) {
+  async updateProfile(userId: string, data: { fullName?: string; username?: string; avatar?: string; timezone?: string }) {
     return this.prisma.user.update({ where: { id: userId }, data });
   }
 

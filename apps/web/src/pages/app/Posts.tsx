@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, FileText, Trash2, Ban, CalendarClock } from 'lucide-react';
+import { Plus, FileText, Trash2, Ban, CalendarClock, Calendar, LayoutGrid, Upload } from 'lucide-react';
 import { useFetch } from '@/lib/useApi';
 import { api } from '@/lib/api';
 import type { Post } from '@/lib/types';
@@ -16,6 +16,7 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
 
 type Filter = 'all' | 'draft' | 'scheduled' | 'published' | 'failed';
+type ViewMode = 'grid' | 'calendar';
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: 'all', label: 'Semua' },
@@ -27,10 +28,45 @@ const FILTERS: { value: Filter; label: string }[] = [
 
 export function Posts() {
   const [filter, setFilter] = useState<Filter>('all');
+  const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [deleteTarget, setDeleteTarget] = useState<Post | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Post | null>(null);
+  const [uploadingCsv, setUploadingCsv] = useState(false);
+  const csvRef = useRef<HTMLInputElement>(null);
   const toast = useToast();
   const navigate = useNavigate();
+
+  const handleCsvImport = async (file: File | null) => {
+    if (!file) return;
+    setUploadingCsv(true);
+    try {
+      const text = await file.text();
+      const lines = text.split('\n').filter(Boolean);
+      let imported = 0;
+      // Skip header if any
+      const startIndex = lines[0].toLowerCase().includes('caption') ? 1 : 0;
+      for (let i = startIndex; i < lines.length; i++) {
+        const parts = lines[i].split(',').map((s) => s.trim().replace(/^"|"$/g, ''));
+        const [title, caption, scheduledAt] = parts;
+        if (caption) {
+          await api.post('/posts', {
+            title: title || 'Bulk Post',
+            caption,
+            postType: 'text',
+            scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
+            action: scheduledAt ? 'schedule' : 'draft',
+          });
+          imported++;
+        }
+      }
+      toast.success(`Berhasil mengimpor ${imported} postingan`);
+      refetch();
+    } catch (err) {
+      toast.error('Gagal import CSV', err instanceof Error ? err.message : 'Format CSV tidak valid');
+    } finally {
+      setUploadingCsv(false);
+    }
+  };
 
   const { data, error, loading, refetch } = useFetch<Post[]>(
     () => api.get(`/posts${filter !== 'all' ? `?status=${filter}` : ''}`),
@@ -56,15 +92,60 @@ export function Posts() {
     refetch();
   };
 
+  // Calendar generation helpers
+  const [calDate, setCalDate] = useState(new Date());
+  const year = calDate.getFullYear();
+  const month = calDate.getMonth();
+  const firstDayIndex = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
   return (
     <div className="animate-fade-in">
+      <input
+        ref={csvRef}
+        type="file"
+        accept=".csv,.txt"
+        className="hidden"
+        onChange={(e) => {
+          void handleCsvImport(e.target.files?.[0] ?? null);
+          e.target.value = '';
+        }}
+      />
       <PageHeader
         title="Postingan"
         description="Kelola semua konten yang dibuat dan dijadwalkan."
         action={
-          <Link to="/app/posts/new">
-            <Button icon={<Plus className="h-4 w-4" />}>Buat Postingan</Button>
-          </Link>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<Upload className="h-4 w-4" />}
+              loading={uploadingCsv}
+              onClick={() => csvRef.current?.click()}
+            >
+              Import CSV
+            </Button>
+            <div className="flex rounded-lg bg-slate-100 p-1">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={cn('flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition', viewMode === 'grid' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900')}
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+                Grid
+              </button>
+              <button
+                onClick={() => setViewMode('calendar')}
+                className={cn('flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition', viewMode === 'calendar' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900')}
+              >
+                <Calendar className="h-3.5 w-3.5" />
+                Kalender
+              </button>
+            </div>
+            <Link to="/app/posts/new">
+              <Button icon={<Plus className="h-4 w-4" />}>Buat Postingan</Button>
+            </Link>
+          </div>
         }
       />
 
@@ -79,6 +160,51 @@ export function Posts() {
         <PageLoader />
       ) : error ? (
         <ErrorPanel message={error} onRetry={refetch} />
+      ) : viewMode === 'calendar' ? (
+        <Card className="p-6">
+          <div className="mb-6 flex items-center justify-between">
+            <h3 className="text-lg font-bold text-slate-900">{monthNames[month]} {year}</h3>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => setCalDate(new Date(year, month - 1, 1))}>Bulan Lalu</Button>
+              <Button size="sm" variant="outline" onClick={() => setCalDate(new Date())}>Hari Ini</Button>
+              <Button size="sm" variant="outline" onClick={() => setCalDate(new Date(year, month + 1, 1))}>Bulan Depan</Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-7 gap-2 text-center text-xs font-semibold text-slate-400">
+            <span>Min</span><span>Sen</span><span>Sel</span><span>Rab</span><span>Kam</span><span>Jum</span><span>Sab</span>
+          </div>
+          <div className="mt-2 grid grid-cols-7 gap-2">
+            {Array.from({ length: firstDayIndex }).map((_, i) => (
+              <div key={`empty-${i}`} className="h-28 rounded-lg bg-slate-50/50" />
+            ))}
+            {Array.from({ length: daysInMonth }).map((_, i) => {
+              const day = i + 1;
+              const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+              const dayPosts = posts.filter((p) => p.scheduledAt && p.scheduledAt.startsWith(dateStr));
+              return (
+                <div key={`day-${day}`} className="h-28 overflow-y-auto rounded-lg border border-slate-100 bg-white p-2 text-left">
+                  <span className="text-xs font-semibold text-slate-700">{day}</span>
+                  <div className="mt-1.5 space-y-1">
+                    {dayPosts.map((p) => {
+                      const meta = postStatusMeta(p.status);
+                      return (
+                        <div
+                          key={p.id}
+                          onClick={() => navigate(`/app/posts/${p.id}`)}
+                          className={cn('cursor-pointer truncate rounded px-1.5 py-0.5 text-[10px] font-medium text-white', meta.className.includes('amber') ? 'bg-amber-500' : meta.className.includes('emerald') ? 'bg-emerald-500' : 'bg-brand-600')}
+                          title={p.title || p.caption || ''}
+                        >
+                          {p.title || p.caption || 'Postingan'}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
       ) : posts.length === 0 ? (
         <Card>
           <EmptyState
@@ -131,8 +257,11 @@ export function Posts() {
                       ))}
                     </div>
                   </div>
-                  <p className="line-clamp-2 min-h-10 text-sm font-medium leading-relaxed text-slate-800">
-                    {post.caption || post.title || 'Tanpa caption'}
+                  <p className="line-clamp-2 min-h-6 text-sm font-bold text-slate-900">
+                    {post.title || (post.caption ? post.caption.slice(0, 50) : 'Tanpa Judul')}
+                  </p>
+                  <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-500">
+                    {post.title ? post.caption : ''}
                   </p>
                   <div className="mt-3 flex items-center gap-3 text-xs text-slate-400">
                     <span>{timeAgo(post.createdAt)}</span>

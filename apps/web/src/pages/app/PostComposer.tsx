@@ -47,6 +47,7 @@ export function PostComposer() {
     [editId],
   );
 
+  const [title, setTitle] = useState('');
   const [caption, setCaption] = useState('');
   const [hashtags, setHashtags] = useState('');
   const [postType, setPostType] = useState('image');
@@ -60,12 +61,20 @@ export function PostComposer() {
 
   useEffect(() => {
     if (!post) return;
+    setTitle(post.title ?? '');
     setCaption(post.caption ?? '');
     setHashtags(post.hashtags ?? '');
     setPostType(post.postType);
     setAccountIds((post.accounts ?? []).map((pa) => pa.accountId));
     setMediaIds((post.media ?? []).map((pm) => pm.mediaId));
-    setScheduledAt(post.scheduledAt ? post.scheduledAt.slice(0, 16) : '');
+    if (post.scheduledAt) {
+      const d = new Date(post.scheduledAt);
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const localStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      setScheduledAt(localStr);
+    } else {
+      setScheduledAt('');
+    }
   }, [post]);
 
   const activeAccounts = useMemo(() => (accounts ?? []).filter((a) => a.isActive), [accounts]);
@@ -113,12 +122,13 @@ export function PostComposer() {
     setAction(actionValue);
     try {
       const payload = {
+        title,
         caption,
         hashtags,
         postType,
         accountIds,
         mediaIds,
-        scheduledAt: scheduledAt || undefined,
+        scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
         action: actionValue,
       };
       if (isEditing && editId) {
@@ -177,6 +187,15 @@ export function PostComposer() {
           <Card>
             <CardHeader icon={<Send className="h-4 w-4" />} title="Konten" />
             <CardBody className="space-y-5">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-slate-700">Judul Postingan (Opsional)</label>
+                <Input
+                  placeholder="Judul postingan..."
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              </div>
+
               <div>
                 <div className="mb-1.5 flex items-center justify-between">
                   <label className="text-sm font-medium text-slate-700">Caption</label>
@@ -286,6 +305,42 @@ export function PostComposer() {
         </div>
 
         <div className="space-y-6 lg:col-span-2">
+          <Card>
+            <CardHeader icon={<Send className="h-4 w-4" />} title="Mockup Preview" description="Pratinjau tampilan konten sosial media" />
+            <CardBody>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="mb-3 flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 font-bold text-white text-xs">
+                    DX
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-slate-800">Akun DtmX</p>
+                    <p className="text-[10px] text-slate-400">Baru saja · Publik</p>
+                  </div>
+                </div>
+                {title && <p className="mb-2 text-sm font-bold text-slate-900">{title}</p>}
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">
+                  {caption || 'Tulis caption untuk melihat pratinjau...'}
+                </p>
+                {hashtags && <p className="mt-2 text-xs font-medium text-brand-600">{hashtags}</p>}
+
+                {selectedMedia.length > 0 && (
+                  <div className="mt-3 grid grid-cols-2 gap-2 overflow-hidden rounded-lg">
+                    {selectedMedia.slice(0, 2).map((m) => (
+                      <div key={m.id} className="relative aspect-video overflow-hidden rounded bg-slate-900">
+                        {m.fileType === 'video' ? (
+                          <video src={mediaUrl(m.filename)} className="h-full w-full object-cover" muted />
+                        ) : (
+                          <img src={mediaUrl(m.filename)} alt={m.originalName} className="h-full w-full object-cover" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </CardBody>
+          </Card>
+
           <Card>
             <CardHeader icon={<Send className="h-4 w-4" />} title="Target Akun" description={activeAccounts.length ? `Pilih ${activeAccounts.length} akun yang tersedia` : 'Belum ada akun'} />
             <CardBody>

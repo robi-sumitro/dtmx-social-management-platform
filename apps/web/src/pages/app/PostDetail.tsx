@@ -85,8 +85,8 @@ export function PostDetail() {
       </Link>
 
       <PageHeader
-        title={post.caption || post.title || 'Tanpa caption'}
-        description={post.title && post.title !== post.caption ? post.title : undefined}
+        title={post.title || post.caption || 'Tanpa Judul'}
+        description={post.title && post.caption ? post.caption.slice(0, 100) : undefined}
         action={
           <div className="flex flex-wrap items-center gap-2.5">
             {editable && (
@@ -114,7 +114,13 @@ export function PostDetail() {
               title="Konten"
               action={<Badge className={meta.className} dot={meta.dot}>{meta.label}</Badge>}
             />
-            <CardBody className="space-y-5">
+             <CardBody className="space-y-5">
+              {post.title && (
+                <div>
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Judul</p>
+                  <p className="text-sm font-semibold text-slate-900">{post.title}</p>
+                </div>
+              )}
               <div>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Caption</p>
                 <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-800">{post.caption || '—'}</p>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   FileText,
@@ -38,11 +38,14 @@ const NAV = [
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, isAdmin, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const headerMenuRef = useRef<HTMLDivElement>(null);
+
+  const isSettings = location.pathname === '/app/settings';
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
@@ -222,22 +225,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <p className="truncate text-xs text-slate-500">{user?.email}</p>
                   </div>
                   <div className="my-1 h-px bg-slate-100" />
-                  <Link
-                    to="/app/settings"
-                    onClick={() => setHeaderMenuOpen(false)}
-                    className="flex items-center gap-2 px-3.5 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
-                  >
-                    <UserIcon className="h-4 w-4" />
-                    Profil
-                  </Link>
-                  <Link
-                    to="/app/settings"
-                    onClick={() => setHeaderMenuOpen(false)}
-                    className="flex items-center gap-2 px-3.5 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
-                  >
-                    <Settings className="h-4 w-4" />
-                    Pengaturan
-                  </Link>
+                  {!isSettings && (
+                    <>
+                      <Link
+                        to="/app/settings"
+                        onClick={() => setHeaderMenuOpen(false)}
+                        className="flex items-center gap-2 px-3.5 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                      >
+                        <UserIcon className="h-4 w-4" />
+                        Profil
+                      </Link>
+                      <Link
+                        to="/app/settings"
+                        onClick={() => setHeaderMenuOpen(false)}
+                        className="flex items-center gap-2 px-3.5 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+                      >
+                        <Settings className="h-4 w-4" />
+                        Pengaturan
+                      </Link>
+                    </>
+                  )}
                   <div className="my-1 h-px bg-slate-100" />
                   <button
                     onClick={handleLogout}

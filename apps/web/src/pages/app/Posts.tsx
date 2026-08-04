@@ -32,11 +32,15 @@ export function Posts() {
   const toast = useToast();
   const navigate = useNavigate();
 
-  const { data, error, loading, refetch } = useFetch<Post[]>(() => api.get('/posts'), []);
-  const posts = (data ?? []).filter((p) => (filter === 'all' ? true : p.status === filter));
+  const { data, error, loading, refetch } = useFetch<Post[]>(
+    () => api.get(`/posts${filter !== 'all' ? `?status=${filter}` : ''}`),
+    [filter],
+  );
+  const posts = data ?? [];
 
+  const allPosts = useFetch<Post[]>(() => api.get('/posts'), []);
   const counts = (status: Filter) =>
-    status === 'all' ? data?.length ?? 0 : data?.filter((p) => p.status === status).length ?? 0;
+    status === 'all' ? allPosts.data?.length ?? 0 : allPosts.data?.filter((p) => p.status === status).length ?? 0;
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -98,8 +102,14 @@ export function Posts() {
               <Card className="overflow-hidden transition group-hover:shadow-cardHover">
                 {preview ? (
                   preview.fileType === 'video' ? (
-                    <div className="relative flex h-44 items-center justify-center bg-slate-900">
-                      <span className="text-4xl">🎬</span>
+                    <div className="relative h-44 w-full overflow-hidden bg-slate-900">
+                      <video
+                        src={`/uploads/${preview.filename}`}
+                        className="h-full w-full object-cover"
+                        muted
+                        preload="metadata"
+                        onLoadedData={(e) => { (e.target as HTMLVideoElement).currentTime = 1; }}
+                      />
                       <span className="absolute bottom-2 right-2 rounded-md bg-black/60 px-2 py-0.5 text-xs text-white">Video</span>
                     </div>
                   ) : (

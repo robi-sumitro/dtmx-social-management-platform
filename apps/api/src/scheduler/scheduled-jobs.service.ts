@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { FeatureFlagService } from '../features/feature-flag.service';
+import { BulkProcessor } from '../queue/bulk.processor';
 
 @Injectable()
 export class ScheduledJobsService implements OnModuleInit {
@@ -9,6 +10,7 @@ export class ScheduledJobsService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly flags: FeatureFlagService,
+    private readonly bulk: BulkProcessor,
   ) {}
 
   onModuleInit() {
@@ -24,6 +26,28 @@ export class ScheduledJobsService implements OnModuleInit {
       data: { status: 'expired' },
     });
     if (res.count > 0) this.logger.log(`Expired ${res.count} subscriptions`);
+  }
+
+  // Publish scheduled posts whose scheduledAt has arrived
+  @Cron(CronExpression.EVERY_MINUTE)
+  async publishScheduledPosts() {
+    const now = new Date();
+    const posts = await this.prisma.post.findMany({
+      where: {
+        status: 'scheduled',
+        scheduledAt: { not: null, lte: now },
+      },
+      select: { id: true },
+    });
+    for (const post of posts) {
+      await this.prisma.post.update({
+        where: { id: post.id },
+        data: { status: 'publishing' },
+      });
+      await this.bulk.enqueuePublish({ postId: post.id });
+      this.logger.log(`Enqueued scheduled post ${post.id} for publishing`);
+    }
+    if (posts.length > 0) this.logger.log(`Picked up ${posts.length} scheduled posts`);
   }
 
   // Refresh token freshness markers nightly

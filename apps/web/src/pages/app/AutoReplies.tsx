@@ -166,7 +166,6 @@ export function AutoReplies() {
               Aktifkan aturan untuk membalas interaksi baru secara otomatis, atau pilih "Balas AI" langsung dari Inbox.
             </p>
           </div>
-          <Badge className="bg-emerald-50 text-emerald-700 ring-emerald-200">Fitur Aktif</Badge>
         </div>
       </Card>
 

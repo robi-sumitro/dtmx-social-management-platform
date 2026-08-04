@@ -86,7 +86,7 @@ export function PostDetail() {
 
       <PageHeader
         title={post.caption || post.title || 'Tanpa caption'}
-        description={post.title ? post.title : undefined}
+        description={post.title && post.title !== post.caption ? post.title : undefined}
         action={
           <div className="flex flex-wrap items-center gap-2.5">
             {editable && (
@@ -155,8 +155,14 @@ export function PostDetail() {
                     const file = pm.media;
                     if (!file) return null;
                     return file.fileType === 'video' ? (
-                      <div key={pm.id} className="flex aspect-video items-center justify-center rounded-xl bg-slate-900 text-3xl">
-                        🎬
+                      <div key={pm.id} className="relative aspect-video overflow-hidden rounded-xl bg-slate-900">
+                        <video
+                          src={mediaUrl(file.filename)}
+                          className="h-full w-full object-cover"
+                          muted
+                          preload="metadata"
+                          onLoadedData={(e) => { (e.target as HTMLVideoElement).currentTime = 1; }}
+                        />
                       </div>
                     ) : (
                       <img

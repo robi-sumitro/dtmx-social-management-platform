@@ -15,8 +15,12 @@ export class BulkProcessor {
     return this.replies.add('send', data, { attempts: 3, backoff: { type: 'exponential', delay: 4000 } });
   }
 
-  async enqueuePublish(data: { postId: string }) {
-    return this.publishing.add('publish', data, { attempts: 3, backoff: { type: 'exponential', delay: 5000 } });
+  async enqueuePublish(data: { postId: string }, delayMs?: number) {
+    return this.publishing.add('publish', data, {
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 5000 },
+      delay: delayMs && delayMs > 0 ? delayMs : undefined,
+    });
   }
 
   async enqueueEmail(data: { to: string; subject: string; html: string }) {

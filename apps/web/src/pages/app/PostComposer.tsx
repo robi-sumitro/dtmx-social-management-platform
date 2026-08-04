@@ -261,7 +261,13 @@ export function PostComposer() {
                         )}
                       >
                         {m.fileType === 'video' ? (
-                          <div className="flex h-full w-full items-center justify-center bg-slate-900 text-2xl">🎬</div>
+                          <video
+                            src={mediaUrl(m.filename)}
+                            className="h-full w-full object-cover"
+                            muted
+                            preload="metadata"
+                            onLoadedData={(e) => { (e.target as HTMLVideoElement).currentTime = 1; }}
+                          />
                         ) : (
                           <img src={mediaUrl(m.filename)} alt={m.originalName} className="h-full w-full object-cover" loading="lazy" />
                         )}

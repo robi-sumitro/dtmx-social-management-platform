@@ -12,6 +12,8 @@ const TYPE_ICON: Record<string, { icon: React.ReactNode; className: string }> = 
   post: { icon: <Send className="h-4 w-4" />, className: 'bg-blue-50 text-blue-600' },
   success: { icon: <Check className="h-4 w-4" />, className: 'bg-emerald-50 text-emerald-600' },
   warning: { icon: <Info className="h-4 w-4" />, className: 'bg-orange-50 text-orange-600' },
+  info: { icon: <Info className="h-4 w-4" />, className: 'bg-slate-50 text-slate-600' },
+  system: { icon: <Info className="h-4 w-4" />, className: 'bg-slate-50 text-slate-500' },
 };
 
 export function NotificationBell() {
@@ -25,14 +27,19 @@ export function NotificationBell() {
   const load = useCallback(async (showLoader = false) => {
     if (showLoader) setLoading(true);
     try {
-      const [list, count] = await Promise.all([
+      const [listResult, countResult] = await Promise.allSettled([
         api.get<Notification[]>('/notifications'),
-        api.get<{ _count?: number } | number>('/notifications/unread-count'),
+        api.get<number>('/notifications/unread-count'),
       ]);
-      setItems(Array.isArray(list) ? list : []);
-      setUnread(typeof count === 'number' ? count : (count as { _count?: number })?._count ?? 0);
-    } catch {
-      /* ignore */
+      const list = listResult.status === 'fulfilled' ? (Array.isArray(listResult.value) ? listResult.value : []) : [];
+      setItems(list);
+      if (countResult.status === 'fulfilled') {
+        setUnread(typeof countResult.value === 'number' ? countResult.value : 0);
+      } else {
+        setUnread(list.filter((n) => !n.isRead).length);
+      }
+    } catch (err) {
+      console.error('[NotificationBell] load error:', err);
     } finally {
       if (showLoader) setLoading(false);
     }
@@ -56,7 +63,13 @@ export function NotificationBell() {
     if (!n.isRead) {
       setUnread((u) => Math.max(0, u - 1));
       setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, isRead: true } : x)));
-      void api.patch(`/notifications/${n.id}/read`).catch(() => undefined);
+      try {
+        await api.patch(`/notifications/${n.id}/read`);
+      } catch (err) {
+        console.error('[NotificationBell] markRead error:', err);
+        setUnread((u) => u + 1);
+        setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, isRead: false } : x)));
+      }
     }
     setOpen(false);
     if (n.link) navigate(n.link);
@@ -65,7 +78,12 @@ export function NotificationBell() {
   const markAll = async () => {
     setUnread(0);
     setItems((prev) => prev.map((x) => ({ ...x, isRead: true })));
-    await api.patch('/notifications/read-all').catch(() => undefined);
+    try {
+      await api.patch('/notifications/read-all');
+    } catch (err) {
+      console.error('[NotificationBell] markAll error:', err);
+      void load();
+    }
   };
 
   return (

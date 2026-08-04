@@ -150,12 +150,15 @@ export class PostsService {
   }
 
   async schedule(id: string) {
-    await this.prisma.post.update({
+    const post = await this.prisma.post.update({
       where: { id },
       data: { status: 'scheduled' },
+      select: { scheduledAt: true },
     });
-    // In production, we'd delay the job until scheduledAt via a queue.
-    await this.bulk.enqueuePublish({ postId: id });
+    const delay = post.scheduledAt && post.scheduledAt > new Date()
+      ? post.scheduledAt.getTime() - Date.now()
+      : 0;
+    await this.bulk.enqueuePublish({ postId: id }, delay);
     return { id, status: 'scheduled' };
   }
 

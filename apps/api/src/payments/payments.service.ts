@@ -155,18 +155,25 @@ export class PaymentsService {
     return { mode: method, payment, payUrl: intent.transactionUrl };
   }
 
-  async handleWebhook(method: string, body: any, headers: any) {
+  async handleWebhook(method: string, body: any, headers: any, rawBody?: Buffer | string) {
     const gateway = GatewayFactory.get(method);
-    const result = await gateway.handleWebhook(body, headers);
+    const result = await gateway.handleWebhook(body, headers, rawBody);
     if (!result.ok || !result.ref) return { received: true };
 
     const payment = await this.prisma.payment.findFirst({
       where: { providerRef: result.ref },
     });
-    if (payment && payment.status !== 'PAID') {
+    if (!payment) return { received: true, status: result.status };
+    if (payment.method !== method) {
+      this.logger.warn(
+        `Webhook ${method} ref ${result.ref} does not match payment method ${payment.method}; ignored`,
+      );
+      return { received: true };
+    }
+    if (payment.status !== 'PAID' && result.status) {
       await this.prisma.payment.update({
         where: { id: payment.id },
-        data: { status: result.status || 'PAID' },
+        data: { status: result.status },
       });
       if (result.status === 'PAID') {
         await this.activate(payment.userId, payment.planId, payment.method);

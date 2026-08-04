@@ -42,27 +42,35 @@ export class AIController {
       include: { plan: true },
     });
     const quota = sub?.plan?.aiPerMonth || 0;
-    const since = new Date();
-    since.setDate(since.getDate() - 30);
-    const used = await this.prisma.aiUsage.count({
-      where: { userId, createdAt: { gte: since } },
-    });
-    if (used >= quota) {
-      throw new BadRequestException('Kuota AI bulanan sudah habis. Upgrade paket atau tunggu reset kuota.');
-    }
 
-    const result = await this.ai.complete(body.prompt, {}, body.provider);
-    await this.prisma.aiUsage.create({
-      data: {
-        userId,
-        feature: body.feature || 'content_writer',
-        provider: body.provider || this.ai.activeProvider,
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        prompt: body.prompt.slice(0, 2000),
-        result: result.content.slice(0, 5000),
-      },
+    const usage = await this.prisma.$transaction(async (tx) => {
+      // Serialize quota checks per user with a row lock to prevent over-quota races.
+      await tx.$queryRaw`SELECT id FROM subscriptions WHERE id = ${sub?.id} FOR UPDATE`;
+
+      const since = new Date();
+      since.setDate(since.getDate() - 30);
+      const used = await tx.aiUsage.count({
+        where: { userId, createdAt: { gte: since } },
+      });
+      if (used >= quota) {
+        throw new BadRequestException('Kuota AI bulanan sudah habis. Upgrade paket atau tunggu reset kuota.');
+      }
+
+      const result = await this.ai.complete(body.prompt, {}, body.provider);
+      return tx.aiUsage.create({
+        data: {
+          userId,
+          feature: body.feature || 'content_writer',
+          provider: body.provider || this.ai.activeProvider,
+          inputTokens: result.inputTokens,
+          outputTokens: result.outputTokens,
+          prompt: body.prompt.slice(0, 2000),
+          result: result.content.slice(0, 5000),
+        },
+      });
     });
-    return { content: result.content };
+
+    const content = typeof (usage as any).result === 'string' ? (usage as any).result : '';
+    return { content };
   }
 }

@@ -11,6 +11,15 @@ import {
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { AdminGuard } from './admin.guard';
+import {
+  CreateUserDto,
+  PlanDto,
+  UpdatePlanDto,
+  SetFeatureDto,
+  SetPaymentMethodsDto,
+  PaymentSettingDto,
+  AiSettingDto,
+} from './dto/admin.dto';
 
 @Controller('admin')
 @UseGuards(AdminGuard)
@@ -28,8 +37,8 @@ export class AdminController {
   }
 
   @Post('users')
-  createUser(@Body() body: any) {
-    return this.admin.createUser(body);
+  createUser(@Body() dto: CreateUserDto) {
+    return this.admin.createUser(dto);
   }
 
   @Patch('users/:id/toggle')
@@ -48,13 +57,13 @@ export class AdminController {
   }
 
   @Post('plans')
-  createPlan(@Body() body: any) {
-    return this.admin.createPlan(body);
+  createPlan(@Body() dto: PlanDto) {
+    return this.admin.createPlan(dto);
   }
 
   @Patch('plans/:id')
-  updatePlan(@Param('id') id: string, @Body() body: any) {
-    return this.admin.updatePlan(id, body);
+  updatePlan(@Param('id') id: string, @Body() dto: UpdatePlanDto) {
+    return this.admin.updatePlan(id, dto);
   }
 
   @Delete('plans/:id')
@@ -78,8 +87,8 @@ export class AdminController {
   }
 
   @Patch('features/:key')
-  setFeature(@Param('key') key: string, @Body() body: { enabled: boolean }) {
-    return this.admin.setFlag(key, body.enabled);
+  setFeature(@Param('key') key: string, @Body() dto: SetFeatureDto) {
+    return this.admin.setFlag(key, dto.enabled);
   }
 
   @Get('payments/methods')
@@ -88,8 +97,8 @@ export class AdminController {
   }
 
   @Post('payments/methods')
-  setPaymentMethods(@Body() body: { methods: string[] }) {
-    return this.admin.setPaymentMethods(body.methods);
+  setPaymentMethods(@Body() dto: SetPaymentMethodsDto) {
+    return this.admin.setPaymentMethods(dto.methods);
   }
 
   @Get('payments/settings')
@@ -98,8 +107,8 @@ export class AdminController {
   }
 
   @Post('payments/settings/:key')
-  savePaymentSetting(@Param('key') key: string, @Body() body: any) {
-    return this.admin.savePaymentSetting(key, body);
+  savePaymentSetting(@Param('key') key: string, @Body() dto: PaymentSettingDto) {
+    return this.admin.savePaymentSetting(key, dto);
   }
 
   @Delete('payments/settings/:key')
@@ -113,8 +122,8 @@ export class AdminController {
   }
 
   @Post('ai/settings/:key')
-  saveAiSetting(@Param('key') key: string, @Body() body: { value: string }) {
-    return this.admin.saveAiSetting(key, body.value ?? '');
+  saveAiSetting(@Param('key') key: string, @Body() dto: AiSettingDto) {
+    return this.admin.saveAiSetting(key, dto.value);
   }
 
   @Get('ai/models/:provider')

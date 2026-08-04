@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -43,6 +44,13 @@ export class AuthController {
   @Post('refresh')
   async refresh(@Body() dto: RefreshTokenDto) {
     return this.auth.refresh(dto.refreshToken);
+  }
+
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @Post('logout')
+  async logout(@Body() dto: RefreshTokenDto) {
+    return this.auth.revokeRefreshToken(dto.refreshToken);
   }
 
   @Public()
@@ -108,16 +116,28 @@ export class AuthController {
     return this.handleOauthRedirect(req, res);
   }
 
+  @Public()
+  @Get('oauth/exchange')
+  oauthExchange(@Query('code') code: string) {
+    const session = this.auth.consumeOauthSession(code);
+    if (!session) {
+      throw new BadRequestException('Kode OAuth tidak valid atau sudah kedaluwarsa');
+    }
+    return {
+      accessToken: session.accessToken,
+      refreshToken: session.refreshToken,
+      channels: session.channels ?? [],
+    };
+  }
+
   private handleOauthRedirect(req: any, res: any) {
     const tokens = req.user;
     const front = getFrontendUrl(this.config);
-    const query = new URLSearchParams({
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-    });
-    if (Array.isArray(tokens.channels)) {
-      query.set('channels', JSON.stringify(tokens.channels));
-    }
-    res.redirect(`${front}/auth/oauth/callback?${query.toString()}`);
+    const channels = Array.isArray(tokens.channels) ? tokens.channels : [];
+    const code = this.auth.createOauthSession(
+      { accessToken: tokens.accessToken, refreshToken: tokens.refreshToken },
+      channels,
+    );
+    res.redirect(`${front}/auth/oauth/callback?code=${code}`);
   }
 }

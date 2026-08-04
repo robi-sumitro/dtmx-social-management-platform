@@ -145,27 +145,28 @@ Default lokal (dengan `API_URL=http://localhost:3000`):
 
 > **Connect akun (OAuth):** Saat login via Google/Facebook, sistem **mengecek** apakah akun memiliki channel YouTube / halaman Facebook lalu menawarkan menghubungkannya. Semua platform dihubungkan via OAuth (scope TikTok: `user.info.basic` + `video.publish`; Facebook: `pages_show_list`, `pages_manage_posts`, `pages_read_engagement`; Google: `youtube.readonly` + `youtube.upload`) dan menyimpan token halaman/channel/akun untuk keperluan publish. Untuk TikTok, daftarkan **Client Key** & **Client Secret** di env `TIKTOK_CLIENT_KEY`/`TIKTOK_CLIENT_SECRET` serta aktifkan *Content Posting API* + scope `video.publish` di TikTok for Developers.
 
-### Data awal (otomatis dibuat saat deploy)
+### Data awal (di-deploy sekali, bukan tiap start)
 
-Seed berjalan idempoten (upsert) dan dieksekusi **pada setiap deploy/start** (`prisma:deploy` → `prisma:seed:prod` → `start:prod`), sehingga data awal selalu tersedia tanpa langkah manual:
-
-- **Plans** (Free / Basic / Pro / Enterprise)
-- **Feature Flags** (inbox, AI replies, media upload, scheduling, publishing)
-- **Payment settings** (info rekening manual)
-- **AI settings** — `ai_settings` berisi provider aktif + API key/model tiap provider; tabelnya otomatis dibuat oleh migrasi (`prisma migrate deploy`) dan datanya di-seed, sama seperti akun admin
-- **Akun admin pertama** (idempoten) + subscription **Pro** aktif agar kuota AI tersedia
-
-Untuk development, jalankan manual:
+Seed bersifat idempoten (upsert) dan **tidak lagi dijalankan otomatis pada setiap deploy** demi keamanan (`prisma:deploy` → `start:prod` saja). Jalankan seed **satu kali manual** setelah deploy pertama:
 
 ```bash
 pnpm db:seed
 ```
 
-Kredensial admin default dapat diubah lewat env:
+Yang di-seed:
+- **Plans** (Free / Basic / Pro / Enterprise)
+- **Feature Flags** (inbox, AI replies, media upload, scheduling, publishing)
+- **Payment settings** (info rekening manual)
+- **AI settings** — `ai_settings` berisi provider aktif + API key/model tiap provider
+- **Akun admin pertama** (idempoten) + subscription **Pro** aktif agar kuota AI tersedia
+
+> **Keamanan:** saat `NODE_ENV=production`, seed menolak berjalan jika `SEED_ADMIN_PASSWORD` tidak di-set, dan tidak pernah mengubah password admin yang sudah ada. Password tidak pernah dicetak ke log.
+
+Kredensial admin diatur lewat env:
 
 ```bash
 SEED_ADMIN_EMAIL=admin@dtmx.app
-SEED_ADMIN_PASSWORD=admin123456
+SEED_ADMIN_PASSWORD=<password-kuat-unik>
 ```
 
 ### Konfigurasi AI (Admin Panel)
@@ -184,7 +185,9 @@ Lihat `apps/api/.env.example` untuk daftar lengkap. Bagian utama:
 - `REDIS_HOST` / `REDIS_PORT` — Redis untuk BullMQ queue
 - `JWT_SECRET` / `JWT_REFRESH_SECRET` — token secret auth
 - `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GEMINI_API_KEY` — fallback provider AI (kelola utama lewat Admin Panel → AI Providers)
-- `STRIPE_SECRET_KEY` / `TRIPAY_API_KEY` / `MIDTRANS_SERVER_KEY` — payment
+- `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` / `TRIPAY_API_KEY` / `TRIPAY_PRIVATE_KEY` / `MIDTRANS_SERVER_KEY` — payment
+  - Webhook Tripay & Stripe **wajib** diverifikasi signature (`TRIPAY_PRIVATE_KEY` untuk `x-signature`; `STRIPE_WEBHOOK_SECRET` untuk `Stripe-Signature`). Tanpa secret tersebut webhook ditolak.
+- `CORS_ORIGINS` — daftar origin frontend (pisah koma). Kosong = CORS dimatikan (tidak ada `*` default).
 - `GOOGLE_CLIENT_ID` / `FACEBOOK_APP_ID` — OAuth login
 
 ## Model data utama
@@ -228,7 +231,7 @@ GET  /flags, /health
 
 **Kuota akun (slot):** batas paket dihitung per **slot**, bukan per record. Satu Halaman Facebook + Instagram Business yang terhubung lewat OAuth dikelompokkan (kolom `parent_id`) dan hanya memakai **1 slot**. `PATCH /social-accounts/refresh` memperbarui token: Facebook memperpanjang user token long-lived lalu mengambil ulang page token, YouTube & TikTok menukar refresh token menjadi access token baru (TikTok me-rotate refresh token).
 
-Auth menggunakan JWT Bearer. Guard `RolesGuard` + `FeatureGuard` untuk kontrol akses & fitur.
+Auth menggunakan JWT Bearer. Semua route API **dilindungi global** oleh `JwtAuthGuard` (endpoint publik ditandai `@Public()`), plus rate limiting per-IP (`@nestjs/throttler`), helmet security headers, dan validasi DTO dengan `forbidNonWhitelisted` untuk mencegah mass-assignment.
 
 ## Git
 

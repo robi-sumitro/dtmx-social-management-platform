@@ -29,23 +29,20 @@ export function OAuthCallback() {
     if (ran.current) return;
     ran.current = true;
 
-    const accessToken = searchParams.get('accessToken');
-    const refreshToken = searchParams.get('refreshToken');
+    const code = searchParams.get('code');
 
-    if (!accessToken || !refreshToken) {
-      setError('Token OAuth tidak ditemukan. Silakan coba lagi.');
+    if (!code) {
+      setError('Kode OAuth tidak ditemukan. Silakan coba lagi.');
       return;
     }
 
-    oauthCallback(accessToken, refreshToken)
-      .then(async () => {
-        let detected: DetectedChannel[] = [];
-        try {
-          const raw = JSON.parse(searchParams.get('channels') ?? '[]');
-          if (Array.isArray(raw)) detected = raw;
-        } catch {
-          detected = [];
-        }
+    api
+      .get<{ accessToken: string; refreshToken: string; channels?: DetectedChannel[] }>(
+        `/auth/oauth/exchange?code=${encodeURIComponent(code)}`,
+      )
+      .then(async (data) => {
+        await oauthCallback(data.accessToken, data.refreshToken);
+        let detected = Array.isArray(data.channels) ? data.channels : [];
         if (detected.length === 0) {
           toast.success('Berhasil masuk', 'Akun kamu terhubung via OAuth.');
           navigate('/app', { replace: true });

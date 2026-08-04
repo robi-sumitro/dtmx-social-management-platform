@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: dtmx
+          POSTGRES_PASSWORD: dtmx
+          POSTGRES_DB: dtmx
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.18.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @dtmx/api prisma:generate
+
+      - name: Build API
+        run: pnpm --filter @dtmx/api build
+
+      - name: Lint API
+        run: pnpm --filter @dtmx/api lint
+
+      - name: Test API
+        run: pnpm --filter @dtmx/api test
+
+      - name: Typecheck Web
+        run: pnpm --filter @dtmx/web typecheck
+
+      - name: Apply migrations
+        env:
+          DATABASE_URL: postgresql://dtmx:dtmx@localhost:5432/dtmx
+        run: pnpm --filter @dtmx/api prisma:deploy
+
+      - name: Build Web
+        run: pnpm --filter @dtmx/web build

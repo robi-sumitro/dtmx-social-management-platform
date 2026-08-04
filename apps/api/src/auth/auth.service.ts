@@ -14,9 +14,20 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from './email.service';
 import { RegisterDto, LoginDto } from './dto/auth.dto';
 
+interface OauthSession {
+  accessToken: string;
+  refreshToken: string;
+  channels?: any[];
+  expiresAt: number;
+}
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+
+  private oauthSessions = new Map<string, OauthSession>();
+
+  private revokedJtis = new Map<string, number>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -24,6 +35,25 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly email: EmailService,
   ) {}
+
+  createOauthSession(tokens: { accessToken: string; refreshToken: string }, channels?: any[]): string {
+    const code = randomBytes(24).toString('hex');
+    this.oauthSessions.set(code, {
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      channels,
+      expiresAt: Date.now() + 5 * 60 * 1000,
+    });
+    return code;
+  }
+
+  consumeOauthSession(code: string): OauthSession | undefined {
+    const session = this.oauthSessions.get(code);
+    if (!session) return undefined;
+    this.oauthSessions.delete(code);
+    if (session.expiresAt < Date.now()) return undefined;
+    return session;
+  }
 
   async getMe(id: string) {
     const user = await this.prisma.user.findUnique({
@@ -165,12 +195,15 @@ export class AuthService {
     id: string; email: string; role: string;
   }) {
     const payload = { sub: user.id, email: user.email, role: user.role };
+    const jti = randomBytes(16).toString('hex');
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
+        jwtid: jti,
         secret: this.config.get<string>('JWT_SECRET'),
         expiresIn: this.config.get<string>('JWT_EXPIRES_IN', '15m'),
       }),
       this.jwtService.signAsync(payload, {
+        jwtid: jti,
         secret: this.config.get<string>('JWT_REFRESH_SECRET'),
         expiresIn: '30d',
       }),
@@ -180,6 +213,48 @@ export class AuthService {
       refreshToken,
       user: { id: user.id, email: user.email, role: user.role },
     };
+  }
+
+  async revokeRefreshToken(refreshToken: string) {
+    try {
+      const payload = this.jwtService.verify(refreshToken, {
+        secret: this.config.get<string>('JWT_REFRESH_SECRET'),
+      });
+      if (payload?.jti) {
+        const exp = (payload.exp ?? Math.floor(Date.now() / 1000) + 30 * 86400) * 1000;
+        this.revokedJtis.set(payload.jti, exp);
+      }
+      return { ok: true };
+    } catch {
+      return { ok: true };
+    }
+  }
+
+  private isRevoked(jti?: string): boolean {
+    if (!jti) return false;
+    const exp = this.revokedJtis.get(jti);
+    if (!exp) return false;
+    if (exp < Date.now()) {
+      this.revokedJtis.delete(jti);
+      return false;
+    }
+    return true;
+  }
+
+  async refresh(refreshToken: string) {
+    try {
+      const payload = this.jwtService.verify(refreshToken, {
+        secret: this.config.get<string>('JWT_REFRESH_SECRET'),
+      });
+      if (this.isRevoked(payload?.jti)) {
+        throw new UnauthorizedException('Refresh token tidak valid');
+      }
+      const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+      if (!user || !user.isActive) throw new UnauthorizedException('Akun tidak valid');
+      return this.issueTokens(user);
+    } catch {
+      throw new UnauthorizedException('Refresh token tidak valid');
+    }
   }
 
   private async detectGoogleChannels(accessToken: string): Promise<
@@ -223,19 +298,6 @@ export class AuthService {
       }));
     } catch {
       return [];
-    }
-  }
-
-  async refresh(refreshToken: string) {
-    try {
-      const payload = this.jwtService.verify(refreshToken, {
-        secret: this.config.get<string>('JWT_REFRESH_SECRET'),
-      });
-      const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
-      if (!user || !user.isActive) throw new UnauthorizedException('Akun tidak valid');
-      return this.issueTokens(user);
-    } catch {
-      throw new UnauthorizedException('Refresh token tidak valid');
     }
   }
 

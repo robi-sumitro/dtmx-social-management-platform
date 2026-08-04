@@ -3,6 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
 import { FeatureFlagService } from '../features/feature-flag.service';
 import { BulkProcessor } from '../queue/bulk.processor';
+import { RedisLockService } from './redis-lock.service';
 
 @Injectable()
 export class ScheduledJobsService implements OnModuleInit {
@@ -11,6 +12,7 @@ export class ScheduledJobsService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly flags: FeatureFlagService,
     private readonly bulk: BulkProcessor,
+    private readonly locks: RedisLockService,
   ) {}
 
   onModuleInit() {
@@ -20,62 +22,69 @@ export class ScheduledJobsService implements OnModuleInit {
   // Auto-expire subscriptions that passed expiresAt
   @Cron(CronExpression.EVERY_HOUR)
   async expireSubscriptions() {
-    const now = new Date();
-    const res = await this.prisma.subscription.updateMany({
-      where: { status: 'active', expiresAt: { lt: now } },
-      data: { status: 'expired' },
-    });
-    if (res.count > 0) this.logger.log(`Expired ${res.count} subscriptions`);
+    if (!(await this.locks.acquire('expire-subscriptions', 5 * 60 * 1000))) return;
+    try {
+      const now = new Date();
+      const res = await this.prisma.subscription.updateMany({
+        where: { status: 'active', expiresAt: { lt: now } },
+        data: { status: 'expired' },
+      });
+      if (res.count > 0) this.logger.log(`Expired ${res.count} subscriptions`);
+    } finally {
+      await this.locks.release('expire-subscriptions');
+    }
   }
 
-  // Publish scheduled posts whose scheduledAt has arrived (respecting user timezone offset)
+  // Publish scheduled posts whose scheduledAt has arrived
   @Cron(CronExpression.EVERY_MINUTE)
   async publishScheduledPosts() {
-    const now = new Date();
-    // We fetch scheduled posts and check user timezone if needed or check raw scheduledAt lte now
-    const posts = await this.prisma.post.findMany({
-      where: {
-        status: 'scheduled',
-        scheduledAt: { not: null, lte: now },
-      },
-      select: { id: true, userId: true, user: { select: { timezone: true } } },
-    });
-    for (const post of posts) {
-      // Check user timezone if specified
-      if (post.user?.timezone) {
-        try {
-          const userNowStr = new Date().toLocaleString('en-US', { timeZone: post.user.timezone });
-          const userNow = new Date(userNowStr);
-          // If the scheduled post time is ahead in user's timezone, skip for now
-          // (scheduledAt is stored as UTC representation or absolute timestamp)
-        } catch {
-          // fallback
-        }
-      }
-
-      await this.prisma.post.update({
-        where: { id: post.id },
-        data: { status: 'publishing' },
+    if (!(await this.locks.acquire('publish-scheduled-posts', 50 * 1000))) return;
+    try {
+      const now = new Date();
+      const posts = await this.prisma.post.findMany({
+        where: {
+          status: 'scheduled',
+          scheduledAt: { not: null, lte: now },
+        },
+        select: { id: true },
       });
-      await this.bulk.enqueuePublish({ postId: post.id });
-      this.logger.log(`Enqueued scheduled post ${post.id} for publishing`);
+      for (const post of posts) {
+        await this.prisma.post.update({
+          where: { id: post.id },
+          data: { status: 'publishing' },
+        });
+        await this.bulk.enqueuePublish({ postId: post.id });
+        this.logger.log(`Enqueued scheduled post ${post.id} for publishing`);
+      }
+      if (posts.length > 0) this.logger.log(`Picked up ${posts.length} scheduled posts`);
+    } finally {
+      await this.locks.release('publish-scheduled-posts');
     }
-    if (posts.length > 0) this.logger.log(`Picked up ${posts.length} scheduled posts`);
   }
 
   // Refresh token freshness markers nightly
   @Cron(CronExpression.EVERY_DAY_AT_2AM)
   async touchTokens() {
-    const res = await this.prisma.socialAccount.updateMany({
-      data: { lastSyncAt: new Date() },
-      where: { isActive: true },
-    });
-    this.logger.log(`Touched ${res.count} social accounts`);
+    if (!(await this.locks.acquire('touch-tokens', 10 * 60 * 1000))) return;
+    try {
+      const res = await this.prisma.socialAccount.updateMany({
+        data: { lastSyncAt: new Date() },
+        where: { isActive: true },
+      });
+      this.logger.log(`Touched ${res.count} social accounts`);
+    } finally {
+      await this.locks.release('touch-tokens');
+    }
   }
 
   // Pull new comments/DMs from connected META accounts every 5 minutes.
   @Cron(CronExpression.EVERY_5_MINUTES)
   async syncInbox() {
-    await this.bulk.enqueueAccountSync({ action: 'pull_inbox' });
+    if (!(await this.locks.acquire('sync-inbox', 4 * 60 * 1000))) return;
+    try {
+      await this.bulk.enqueueAccountSync({ action: 'pull_inbox' });
+    } finally {
+      await this.locks.release('sync-inbox');
+    }
   }
 }

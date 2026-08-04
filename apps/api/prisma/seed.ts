@@ -4,12 +4,19 @@ import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
+const isProd = process.env.NODE_ENV === 'production';
+
 const adminDefaults = {
   email: process.env.SEED_ADMIN_EMAIL || 'admin@dtmx.app',
-  password: process.env.SEED_ADMIN_PASSWORD || 'admin123456',
+  password: process.env.SEED_ADMIN_PASSWORD || '',
   username: process.env.SEED_ADMIN_USERNAME || 'admin',
   fullName: process.env.SEED_ADMIN_NAME || 'DtmX Admin',
 };
+
+if (isProd && !adminDefaults.password) {
+  console.error('[seed] SEED_ADMIN_PASSWORD wajib di-set saat NODE_ENV=production. Seed dibatalkan.');
+  process.exit(1);
+}
 
 const plans = [
   {
@@ -120,27 +127,32 @@ async function main() {
   }
 
   console.log(`Seeding admin user (${adminDefaults.email})...`);
-  const passwordHash = await bcrypt.hash(adminDefaults.password, 10);
-  const admin = await prisma.user.upsert({
-    where: { email: adminDefaults.email },
-    update: {
-      role: 'admin',
-      isActive: true,
-      passwordHash: adminDefaults.password ? passwordHash : undefined,
-    },
-    create: {
-      email: adminDefaults.email,
-      username: adminDefaults.username,
-      passwordHash,
-      fullName: adminDefaults.fullName,
-      role: 'admin',
-      isActive: true,
-    },
-  });
-  console.log(`Admin ready: ${admin.email} / ${adminDefaults.password}`);
+  const existingAdmin = await prisma.user.findUnique({ where: { email: adminDefaults.email } });
+  if (existingAdmin) {
+    await prisma.user.update({
+      where: { id: existingAdmin.id },
+      data: { role: 'admin', isActive: true },
+    });
+    console.log('Admin sudah ada, role dijamin tetap admin.');
+  } else {
+    const passwordHash = await bcrypt.hash(adminDefaults.password, 10);
+    const admin = await prisma.user.create({
+      data: {
+        email: adminDefaults.email,
+        username: adminDefaults.username,
+        passwordHash,
+        fullName: adminDefaults.fullName,
+        role: 'admin',
+        isActive: true,
+      },
+    });
+    console.log(`Admin created: ${admin.email}`);
+  }
 
   const pro = await prisma.plan.findUnique({ where: { slug: 'pro' } });
   if (pro) {
+    const admin = await prisma.user.findUnique({ where: { email: adminDefaults.email } });
+    if (!admin) throw new Error('Admin tidak ditemukan setelah seed');
     const existingActive = await prisma.subscription.findFirst({
       where: { userId: admin.id, status: 'active' },
     });

@@ -1,6 +1,7 @@
 {
   "$schema": "https://schema.railpack.com",
   "deploy": {
-    "startCommand": "pnpm --filter @dtmx/api prisma:deploy && pnpm --filter @dtmx/api prisma:seed:prod && pnpm --filter @dtmx/api start:prod"
+    "buildCommand": "pnpm --filter @dtmx/api prisma:generate && pnpm -r build",
+    "startCommand": "pnpm --filter @dtmx/api prisma:deploy && pnpm --filter @dtmx/api start:prod"
   }
 }

@@ -47,7 +47,16 @@ export class SyncProcessor extends WorkerHost {
     let failed = 0;
     for (const acc of accounts) {
       try {
-        const items = await this.platforms.pullInbox(acc);
+        // Refresh credentials nearing/over expiry (e.g. YouTube 1-hour access token).
+        if (acc.tokenExpiresAt && new Date(acc.tokenExpiresAt).getTime() - Date.now() < 10 * 60 * 1000) {
+          try {
+            await this.social.refreshAccount(acc.id);
+          } catch (err) {
+            this.logger.warn(`token refresh failed for ${acc.provider} ${acc.id}: ${(err as Error).message}`);
+          }
+        }
+        const fresh = await this.prisma.socialAccount.findUnique({ where: { id: acc.id } });
+        const items = await this.platforms.pullInbox(fresh ?? acc);
         for (const item of items) {
           if (!item.sourceId) continue;
           const exists = await this.prisma.inboxItem.findFirst({

@@ -109,13 +109,7 @@ export class SocialAccountsService {
 
     for (const acc of accounts) {
       try {
-        if (acc.provider === 'youtube') {
-          await this.refreshYoutube(acc);
-        } else if (acc.provider === 'facebook') {
-          await this.refreshFacebook(acc);
-        } else if (acc.provider === 'tiktok') {
-          await this.refreshTiktok(acc);
-        }
+        await this.refreshOne(acc);
         results.push({ id: acc.id, accountName: acc.accountName, ok: true });
       } catch (err) {
         this.logger.warn(`Refresh failed for ${acc.provider} ${acc.id}: ${(err as Error).message}`);
@@ -140,6 +134,32 @@ export class SocialAccountsService {
       failed: results.filter((r) => !r.ok).length,
       results,
     };
+  }
+
+  /** Refresh a single account's credentials (e.g. before pulling its inbox). */
+  async refreshAccount(accountId: string) {
+    const acc = await this.prisma.socialAccount.findUnique({ where: { id: accountId } });
+    if (!acc) throw new NotFoundException('Akun tidak ditemukan');
+    await this.refreshOne(acc);
+    return { ok: true, accountId };
+  }
+
+  private async refreshOne(acc: {
+    id: string;
+    provider: string;
+    platformId: string;
+    accessToken: string | null;
+    refreshToken: string | null;
+  }): Promise<void> {
+    if (acc.provider === 'youtube') {
+      await this.refreshYoutube(acc);
+    } else if (acc.provider === 'facebook') {
+      await this.refreshFacebook(acc);
+    } else if (acc.provider === 'tiktok') {
+      await this.refreshTiktok(acc);
+    } else {
+      throw new BadRequestException('Provider tidak mendukung refresh token');
+    }
   }
 
   private async refreshYoutube(acc: {

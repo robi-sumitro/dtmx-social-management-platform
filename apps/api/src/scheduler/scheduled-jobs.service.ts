@@ -77,6 +77,17 @@ export class ScheduledJobsService implements OnModuleInit {
     }
   }
 
+  // Refresh account credentials (YouTube/TikTok access tokens etc.) before they expire.
+  @Cron(CronExpression.EVERY_30_MINUTES)
+  async refreshTokens() {
+    if (!(await this.locks.acquire('refresh-tokens', 20 * 60 * 1000))) return;
+    try {
+      await this.bulk.enqueueAccountSync({ action: 'refresh_tokens' });
+    } finally {
+      await this.locks.release('refresh-tokens');
+    }
+  }
+
   // Pull new comments/DMs from connected META accounts every 5 minutes.
   @Cron(CronExpression.EVERY_5_MINUTES)
   async syncInbox() {

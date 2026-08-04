@@ -96,20 +96,21 @@ export function PostComposer() {
     }
   };
 
-  const submit = async () => {
+  const submit = async (actionValue: 'draft' | 'schedule' | 'publish_now') => {
     if (!caption.trim() && postType === 'text') {
       toast.warning('Caption kosong', 'Tulis caption atau gunakan AI untuk membantu.');
       return;
     }
-    if (action !== 'draft' && accountIds.length === 0) {
+    if (actionValue !== 'draft' && accountIds.length === 0) {
       toast.warning('Pilih akun tujuan', 'Pilih minimal satu akun untuk diposting.');
       return;
     }
-    if (action === 'schedule' && !scheduledAt) {
+    if (actionValue === 'schedule' && !scheduledAt) {
       toast.warning('Pilih waktu jadwal', 'Tentukan tanggal dan jam untuk penjadwalan.');
       return;
     }
     setBusy(true);
+    setAction(actionValue);
     try {
       const payload = {
         caption,
@@ -118,7 +119,7 @@ export function PostComposer() {
         accountIds,
         mediaIds,
         scheduledAt: scheduledAt || undefined,
-        action,
+        action: actionValue,
       };
       if (isEditing && editId) {
         await api.patch(`/posts/${editId}`, payload);
@@ -126,8 +127,8 @@ export function PostComposer() {
         await api.post('/posts', payload);
       }
       toast.success(
-        action === 'draft' ? 'Draft tersimpan' : action === 'schedule' ? 'Postingan terjadwal' : 'Postingan dipublikasikan',
-        action === 'publish_now' ? 'Sedang dikirim ke platform.' : undefined,
+        actionValue === 'draft' ? 'Draft tersimpan' : actionValue === 'schedule' ? 'Postingan terjadwal' : 'Postingan dipublikasikan',
+        actionValue === 'publish_now' ? 'Sedang dikirim ke platform.' : undefined,
       );
       navigate('/app/posts');
     } catch (err) {
@@ -337,10 +338,7 @@ export function PostComposer() {
                 fullWidth
                 size="lg"
                 variant="secondary"
-                onClick={() => {
-                  setAction('draft');
-                  void submit();
-                }}
+                onClick={() => void submit('draft')}
                 loading={busy && action === 'draft'}
                 icon={!busy ? <Save className="h-4 w-4" /> : undefined}
               >
@@ -350,10 +348,7 @@ export function PostComposer() {
                 fullWidth
                 size="lg"
                 variant="dark"
-                onClick={() => {
-                  setAction('schedule');
-                  void submit();
-                }}
+                onClick={() => void submit('schedule')}
                 loading={busy && action === 'schedule'}
                 icon={!busy ? <CalendarClock className="h-4 w-4" /> : undefined}
               >
@@ -362,10 +357,7 @@ export function PostComposer() {
               <Button
                 fullWidth
                 size="lg"
-                onClick={() => {
-                  setAction('publish_now');
-                  void submit();
-                }}
+                onClick={() => void submit('publish_now')}
                 loading={busy && action === 'publish_now'}
                 icon={!busy ? <Send className="h-4 w-4" /> : undefined}
               >

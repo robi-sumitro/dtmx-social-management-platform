@@ -38,7 +38,7 @@ export function OAuthCallback() {
     }
 
     oauthCallback(accessToken, refreshToken)
-      .then(() => {
+      .then(async () => {
         let detected: DetectedChannel[] = [];
         try {
           const raw = JSON.parse(searchParams.get('channels') ?? '[]');
@@ -48,6 +48,18 @@ export function OAuthCallback() {
         }
         if (detected.length === 0) {
           toast.success('Berhasil masuk', 'Akun kamu terhubung via OAuth.');
+          navigate('/app', { replace: true });
+          return;
+        }
+        try {
+          const existing = await api.get<Array<{ provider: string; platformId: string }>>('/social-accounts');
+          const connected = new Set(existing.map((a) => `${a.provider}:${a.platformId}`));
+          detected = detected.filter((ch) => !connected.has(`${ch.provider}:${ch.id}`));
+        } catch {
+          // ignore — show all detected if fetch fails
+        }
+        if (detected.length === 0) {
+          toast.success('Berhasil masuk', 'Semua akun sudah terhubung.');
           navigate('/app', { replace: true });
           return;
         }

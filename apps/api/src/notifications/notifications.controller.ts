@@ -18,14 +18,14 @@ export class NotificationsController {
     return this.notifications.unreadCount(userId);
   }
 
-  @Patch(':id/read')
-  read(@Param('id') id: string, @CurrentUser('id') userId: string) {
-    return this.notifications.markRead(userId, id);
-  }
-
   @Patch('read-all')
   readAll(@CurrentUser('id') userId: string) {
     return this.notifications.markAllRead(userId);
+  }
+
+  @Patch(':id/read')
+  read(@Param('id') id: string, @CurrentUser('id') userId: string) {
+    return this.notifications.markRead(userId, id);
   }
 
   @Delete(':id')

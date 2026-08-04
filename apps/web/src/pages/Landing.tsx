@@ -238,7 +238,7 @@ function Hero() {
                   </div>
                   <span className="text-sm font-bold text-white">DtmX</span>
                 </div>
-                {['Dashboard', 'Postingan', 'Inbox', 'Media', 'AI Studio'].map((item, i) => (
+                {['Dashboard', 'Postingan', 'Inbox', 'Media'].map((item, i) => (
                   <div key={item} className={`mb-1 flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium ${i === 0 ? 'bg-white/10 text-white' : 'text-slate-400'}`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${i === 0 ? 'bg-brand-400' : 'bg-slate-600'}`} />
                     {item}

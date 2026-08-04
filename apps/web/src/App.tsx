@@ -25,7 +25,6 @@ import { PostComposer } from '@/pages/app/PostComposer';
 import { PostDetail } from '@/pages/app/PostDetail';
 import { Inbox } from '@/pages/app/Inbox';
 import { Media } from '@/pages/app/Media';
-import { AIStudio } from '@/pages/app/AIStudio';
 import { Accounts } from '@/pages/app/Accounts';
 import { Billing } from '@/pages/app/Billing';
 import { Settings } from '@/pages/app/Settings';
@@ -88,7 +87,6 @@ export function App() {
                   <Route path="posts/:id" element={<PostDetail />} />
                   <Route path="inbox" element={<Inbox />} />
                   <Route path="media" element={<Media />} />
-                  <Route path="ai" element={<AIStudio />} />
                   <Route path="auto-replies" element={<AutoReplies />} />
                   <Route path="accounts" element={<Accounts />} />
                   <Route path="billing" element={<Billing />} />

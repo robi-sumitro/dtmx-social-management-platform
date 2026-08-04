@@ -916,7 +916,7 @@ function AiAdmin() {
         <CardHeader
           icon={<Sparkles className="h-4 w-4" />}
           title="Provider AI Aktif"
-          description="Pilih provider yang dipakai untuk semua fitur AI (AI Studio, auto reply, dsb.)"
+          description="Pilih provider yang dipakai untuk semua fitur AI (auto reply, dsb.)"
         />
         <CardBody className="space-y-5">
           {loading ? (

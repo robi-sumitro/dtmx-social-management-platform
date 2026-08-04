@@ -102,7 +102,7 @@ export function BlogPage() {
         {
           heading: '5 Cara Memanfaatkan AI untuk Konten',
           paragraphs: [
-            'AI bukan pengganti kreativitas, melainkan akselerator. Gunakan AI Studio DtmX untuk brainstorming ide, menyusun caption, dan menyarankan hashtag — lalu beri sentuhan pribadi sebelum terbit.',
+            'AI bukan pengganti kreativitas, melainkan akselerator. Gunakan fitur AI DtmX untuk brainstorming ide, menyusun caption, dan menyarankan hashtag — lalu beri sentuhan pribadi sebelum terbit.',
           ],
         },
         {

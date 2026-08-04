@@ -176,4 +176,7 @@ export class AdminService {
   saveAiSetting(key: string, value: string) {
     return this.aiSettings.upsert(key, value);
   }
+  async listAiModels(provider: string, apiKey: string) {
+    return this.aiSettings.fetchAvailableModels(provider, apiKey);
+  }
 }

@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleInit, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import axios from 'axios';
 import { PrismaService } from '../prisma/prisma.service';
 import { AIProvider, AI_PROVIDERS } from '@dtmx/shared';
 
@@ -113,5 +114,56 @@ export class AISettingsService implements OnModuleInit {
         create: { key: d.key, value: null, label: d.label, placeholder: d.placeholder, order: d.order },
       });
     }
+  }
+
+  async fetchAvailableModels(provider: string, apiKey: string): Promise<string[]> {
+    if (!apiKey) return [];
+    try {
+      if (provider === 'gemini') {
+        return await this.fetchGeminiModels(apiKey);
+      } else if (provider === 'openai') {
+        return await this.fetchOpenAiModels(apiKey);
+      } else if (provider === 'anthropic') {
+        return this.getAnthropicModels();
+      }
+      return [];
+    } catch (err) {
+      this.logger.warn(`Failed to fetch models for ${provider}: ${(err as Error).message}`);
+      return [];
+    }
+  }
+
+  private async fetchGeminiModels(apiKey: string): Promise<string[]> {
+    const { data } = await axios.get(
+      'https://generativelanguage.googleapis.com/v1beta/models',
+      { params: { key: apiKey } },
+    );
+    const models: string[] = data.models
+      ?.map((m: any) => m.name?.replace('models/', '') as string)
+      .filter((n: string) => n && n.startsWith('gemini'))
+      .sort() ?? [];
+    return models;
+  }
+
+  private async fetchOpenAiModels(apiKey: string): Promise<string[]> {
+    const { data } = await axios.get('https://api.openai.com/v1/models', {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    const models: string[] = data.data
+      ?.map((m: any) => m.id as string)
+      .filter((id: string) => id.startsWith('gpt') || id.startsWith('o1') || id.startsWith('o3'))
+      .sort() ?? [];
+    return models;
+  }
+
+  private getAnthropicModels(): string[] {
+    return [
+      'claude-sonnet-4-20250514',
+      'claude-3-5-sonnet-20241022',
+      'claude-3-5-haiku-20241022',
+      'claude-3-5-haiku-latest',
+      'claude-3-opus-20240229',
+      'claude-3-haiku-20240307',
+    ];
   }
 }

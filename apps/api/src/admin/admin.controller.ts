@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AdminService } from './admin.service';
@@ -114,5 +115,10 @@ export class AdminController {
   @Post('ai/settings/:key')
   saveAiSetting(@Param('key') key: string, @Body() body: { value: string }) {
     return this.admin.saveAiSetting(key, body.value ?? '');
+  }
+
+  @Get('ai/models/:provider')
+  listAiModels(@Param('provider') provider: string, @Query('key') apiKey: string) {
+    return this.admin.listAiModels(provider, apiKey ?? '');
   }
 }

@@ -18,6 +18,7 @@ import {
   Activity,
   Sparkles,
   Save,
+  Loader2,
 } from 'lucide-react';
 import { useFetch } from '@/lib/useApi';
 import { api } from '@/lib/api';
@@ -841,10 +842,33 @@ function AiAdmin() {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [savingSetting, setSavingSetting] = useState(false);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
 
   const settings = data ?? [];
   const activeProvider = settings.find((s) => s.key === 'active_provider')?.value || '';
   const credentialSettings = settings.filter((s) => s.key !== 'active_provider');
+
+  const isModelKey = (key: string) => key.endsWith('_model');
+  const getProviderFromKey = (key: string) => key.replace('_model', '').replace('_api_key', '');
+
+  const fetchModels = async (provider: string) => {
+    const apiKeySetting = settings.find((s) => s.key === `${provider}_api_key`);
+    const apiKey = apiKeySetting?.value || '';
+    if (!apiKey) {
+      setAvailableModels([]);
+      return;
+    }
+    setLoadingModels(true);
+    try {
+      const models = await api.get<string[]>(`/admin/ai/models/${provider}?key=${encodeURIComponent(apiKey)}`);
+      setAvailableModels(models ?? []);
+    } catch {
+      setAvailableModels([]);
+    } finally {
+      setLoadingModels(false);
+    }
+  };
 
   const saveProvider = async (provider: string) => {
     setSavingProvider(provider);
@@ -859,9 +883,13 @@ function AiAdmin() {
     }
   };
 
-  const startEdit = (s: AiSetting) => {
+  const startEdit = async (s: AiSetting) => {
     setEditingKey(s.key);
     setEditValue(isSecretKey(s.key) ? '' : s.value ?? '');
+    if (isModelKey(s.key)) {
+      const provider = getProviderFromKey(s.key);
+      await fetchModels(provider);
+    }
   };
 
   const saveSetting = async (key: string) => {
@@ -964,17 +992,48 @@ function AiAdmin() {
                   </div>
                   {editingKey === s.key ? (
                     <div className="flex items-center gap-2">
-                      <Input
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        placeholder={s.placeholder || (secret ? 'API key baru' : 'Isi nilai')}
-                        type={secret ? 'password' : 'text'}
-                        className="w-56"
-                      />
+                      {isModelKey(s.key) ? (
+                        <div className="flex items-center gap-2">
+                          {loadingModels ? (
+                            <div className="flex items-center gap-2 text-sm text-slate-500">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Memuat model...
+                            </div>
+                          ) : (
+                            <Select
+                              value={editValue}
+                              onChange={(e) => setEditValue(e.target.value)}
+                              className="w-64"
+                            >
+                              <option value="">Pilih model...</option>
+                              {availableModels.map((m) => (
+                                <option key={m} value={m}>{m}</option>
+                              ))}
+                              {editValue && !availableModels.includes(editValue) && (
+                                <option value={editValue}>{editValue} (custom)</option>
+                              )}
+                            </Select>
+                          )}
+                          <Input
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            placeholder="Atau ketik manual"
+                            className="w-48"
+                          />
+                        </div>
+                      ) : (
+                        <Input
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          placeholder={s.placeholder || (isSecretKey(s.key) ? 'API key baru' : 'Isi nilai')}
+                          type={isSecretKey(s.key) ? 'password' : 'text'}
+                          className="w-56"
+                        />
+                      )}
                       <Button size="sm" onClick={() => void saveSetting(s.key)} loading={savingSetting}>
                         Simpan
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setEditingKey(null)}>
+                      <Button size="sm" variant="ghost" onClick={() => { setEditingKey(null); setAvailableModels([]); }}>
                         Batal
                       </Button>
                     </div>

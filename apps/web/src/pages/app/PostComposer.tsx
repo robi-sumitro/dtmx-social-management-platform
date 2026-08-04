@@ -33,6 +33,15 @@ const POST_TYPES = [
   { value: 'short_video', label: 'Video Pendek' },
 ];
 
+const ALL_POST_TYPES = POST_TYPES.map((t) => t.value);
+
+const PLATFORM_POST_TYPES: Record<string, string[]> = {
+  facebook: ['text', 'image', 'video', 'carousel', 'short_video'],
+  instagram: ['text', 'image', 'video', 'carousel', 'short_video'],
+  youtube: ['video', 'short_video'],
+  tiktok: ['text', 'image', 'video', 'short_video'],
+};
+
 export function PostComposer() {
   const navigate = useNavigate();
   const toast = useToast();
@@ -81,6 +90,19 @@ export function PostComposer() {
   const mediaItems = media ?? [];
   const selectedMedia = mediaItems.filter((m) => mediaIds.includes(m.id));
   const totalLength = caption.length + hashtags.length;
+
+  const selectedProviders = activeAccounts.filter((a) => accountIds.includes(a.id)).map((a) => a.provider);
+  const allowedPostTypes = useMemo(() => {
+    if (selectedProviders.length === 0) return ALL_POST_TYPES;
+    const sets = selectedProviders.map((p) => PLATFORM_POST_TYPES[p] ?? ALL_POST_TYPES);
+    return ALL_POST_TYPES.filter((t) => sets.every((s) => s.includes(t)));
+  }, [selectedProviders]);
+
+  useEffect(() => {
+    if (allowedPostTypes.length > 0 && !allowedPostTypes.includes(postType)) {
+      setPostType(allowedPostTypes[0]);
+    }
+  }, [allowedPostTypes, postType]);
 
   const toggleAccount = (id: string) =>
     setAccountIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -225,8 +247,13 @@ export function PostComposer() {
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <Select label="Jenis Konten" value={postType} onChange={(e) => setPostType(e.target.value)}>
-                  {POST_TYPES.map((t) => (
+                <Select
+                  label="Jenis Konten"
+                  value={postType}
+                  onChange={(e) => setPostType(e.target.value)}
+                  hint={selectedProviders.length === 0 ? 'Pilih akun tujuan untuk menampilkan jenis konten yang didukung.' : undefined}
+                >
+                  {POST_TYPES.filter((t) => allowedPostTypes.includes(t.value)).map((t) => (
                     <option key={t.value} value={t.value}>{t.label}</option>
                   ))}
                 </Select>

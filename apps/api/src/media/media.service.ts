@@ -5,9 +5,13 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { createWriteStream, mkdirSync, existsSync } from 'fs';
+import { createWriteStream, mkdirSync, existsSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+
+const execFileAsync = promisify(execFile);
 
 @Injectable()
 export class FileStorageService {
@@ -89,6 +93,13 @@ export class MediaService {
   async upload(userId: string, file: Express.Multer.File, folder = 'media') {
     if (!file) throw new BadRequestException('File wajib diunggah');
     const info = await this.storage.save(file.buffer, file.mimetype, folder);
+    const absPath = join(this.storage.uploadRoot, info.filename);
+    let duration: number | null = null;
+    let thumbnail: string | null = null;
+    if (info.fileType === 'video') {
+      duration = await this.probeDuration(absPath);
+      thumbnail = await this.extractThumbnail(absPath);
+    }
     return this.prisma.mediaFile.create({
       data: {
         userId,
@@ -98,8 +109,66 @@ export class MediaService {
         mimeType: info.mimeType,
         fileSize: info.fileSize,
         folder,
+        duration,
+        thumbnail,
       },
     });
+  }
+
+  async regenerateThumbnail(userId: string, id: string) {
+    const media = await this.prisma.mediaFile.findFirst({ where: { id, userId } });
+    if (!media) throw new BadRequestException('Media tidak ditemukan');
+    if (media.fileType !== 'video') throw new BadRequestException('Thumbnail hanya tersedia untuk video');
+    const absPath = join(this.storage.uploadRoot, media.filename);
+    const thumbnail = await this.extractThumbnail(absPath);
+    if (!thumbnail) throw new BadRequestException('Gagal membuat thumbnail dari video');
+    const duration = media.duration ?? (await this.probeDuration(absPath));
+    return this.prisma.mediaFile.update({
+      where: { id },
+      data: { thumbnail, duration },
+    });
+  }
+
+  private async probeDuration(absPath: string): Promise<number | null> {
+    try {
+      const { stdout } = await execFileAsync(
+        'ffprobe',
+        ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', absPath],
+        { timeout: 20000 },
+      );
+      const dur = parseFloat(String(stdout).trim());
+      return Number.isFinite(dur) ? dur : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async extractThumbnail(videoAbsPath: string): Promise<string | null> {
+    const thumbFile = `${randomUUID()}.jpg`;
+    const thumbAbs = join(this.storage.uploadRoot, 'media', thumbFile);
+    const attempts: Array<Array<string>> = [
+      ['-ss', '1'],
+      ['-ss', '0.5'],
+      ['-ss', '0'],
+    ];
+    for (const ss of attempts) {
+      try {
+        await execFileAsync(
+          'ffmpeg',
+          ['-y', ...ss, '-i', videoAbsPath, '-frames:v', '1', '-vf', 'scale=640:-2', thumbAbs],
+          { timeout: 30000 },
+        );
+        if (existsSync(thumbAbs)) return `media/${thumbFile}`;
+      } catch {
+        /* try next seek time */
+      }
+    }
+    try {
+      if (existsSync(thumbAbs)) unlinkSync(thumbAbs);
+    } catch {
+      /* noop */
+    }
+    return null;
   }
 
   async list(userId: string) {

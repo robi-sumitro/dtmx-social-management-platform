@@ -145,7 +145,14 @@ export class PostsService {
   }
 
   async delete(userId: string, id: string) {
-    await this.prisma.post.delete({ where: { id } });
+    const post = await this.prisma.post.findFirst({ where: { id, userId } });
+    if (!post) throw new NotFoundException('Postingan tidak ditemukan');
+    await this.prisma.$transaction([
+      this.prisma.postAccount.deleteMany({ where: { postId: id } }),
+      this.prisma.postMedia.deleteMany({ where: { postId: id } }),
+      this.prisma.postPublication.deleteMany({ where: { postId: id } }),
+      this.prisma.post.delete({ where: { id } }),
+    ]);
     return { ok: true };
   }
 

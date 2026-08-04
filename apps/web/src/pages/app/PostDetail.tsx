@@ -17,7 +17,7 @@ import {
 import { useFetch } from '@/lib/useApi';
 import { api, mediaUrl } from '@/lib/api';
 import type { Post } from '@/lib/types';
-import { cn, formatDateTime, formatDate, postStatusMeta, timeAgo } from '@/lib/utils';
+import { cn, formatDateTime, formatDate, postStatusMeta, postTitle, timeAgo } from '@/lib/utils';
 import { PageHeader, PlatformIcon, ErrorPanel } from '@/components/shared/PageHeader';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -85,7 +85,7 @@ export function PostDetail() {
       </Link>
 
       <PageHeader
-        title={post.title || post.caption || 'Tanpa Judul'}
+        title={postTitle(post)}
         description={post.title && post.caption ? post.caption.slice(0, 100) : undefined}
         action={
           <div className="flex flex-wrap items-center gap-2.5">

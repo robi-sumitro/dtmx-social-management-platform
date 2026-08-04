@@ -1,3 +1,5 @@
+import { getActiveTimezone } from './timezone';
+
 export function cn(...classes: (string | false | null | undefined)[]): string {
   return classes.filter(Boolean).join(' ');
 }
@@ -6,7 +8,10 @@ export function formatDate(value?: string | Date, opts?: Intl.DateTimeFormatOpti
   if (!value) return '-';
   const d = typeof value === 'string' ? new Date(value) : value;
   if (Number.isNaN(d.getTime())) return '-';
-  return d.toLocaleDateString('id-ID', opts ?? { day: 'numeric', month: 'short', year: 'numeric' });
+  return d.toLocaleDateString('id-ID', {
+    timeZone: getActiveTimezone(),
+    ...(opts ?? { day: 'numeric', month: 'short', year: 'numeric' }),
+  });
 }
 
 export function formatDateTime(value?: string | Date): string {
@@ -14,6 +19,7 @@ export function formatDateTime(value?: string | Date): string {
   const d = typeof value === 'string' ? new Date(value) : value;
   if (Number.isNaN(d.getTime())) return '-';
   return d.toLocaleString('id-ID', {
+    timeZone: getActiveTimezone(),
     day: 'numeric',
     month: 'short',
     year: 'numeric',
@@ -36,6 +42,14 @@ export function timeAgo(value?: string | Date): string {
   return formatDate(value);
 }
 
+export function postTitle(post: { title?: string | null; caption?: string | null; createdAt?: string | Date }): string {
+  const title = post.title?.trim();
+  if (title) return title;
+  const caption = post.caption?.trim();
+  if (caption) return caption.length > 60 ? `${caption.slice(0, 60)}…` : caption;
+  return formatDateTime(post.createdAt);
+}
+
 export function formatNumber(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
@@ -54,6 +68,16 @@ export function formatBytes(bytes: number): string {
   const units = ['B', 'KB', 'MB', 'GB'];
   const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
   return `${(bytes / 1024 ** i).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+}
+
+export function formatDuration(seconds?: number | null): string {
+  if (!seconds || !Number.isFinite(seconds)) return '';
+  const s = Math.round(seconds);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
+  return `${m}:${String(sec).padStart(2, '0')}`;
 }
 
 export function initials(name?: string): string {

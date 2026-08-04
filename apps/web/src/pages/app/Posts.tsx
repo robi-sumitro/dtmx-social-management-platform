@@ -4,7 +4,7 @@ import { Plus, FileText, Trash2, Ban, CalendarClock, Calendar, LayoutGrid, Uploa
 import { useFetch } from '@/lib/useApi';
 import { api } from '@/lib/api';
 import type { Post } from '@/lib/types';
-import { cn, formatDate, postStatusMeta, timeAgo } from '@/lib/utils';
+import { cn, formatDate, formatDateTime, postStatusMeta, postTitle } from '@/lib/utils';
 import { PageHeader, PlatformIcon, ErrorPanel } from '@/components/shared/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Tabs } from '@/components/ui/Tabs';
@@ -193,9 +193,9 @@ export function Posts() {
                           key={p.id}
                           onClick={() => navigate(`/app/posts/${p.id}`)}
                           className={cn('cursor-pointer truncate rounded px-1.5 py-0.5 text-[10px] font-medium text-white', meta.className.includes('amber') ? 'bg-amber-500' : meta.className.includes('emerald') ? 'bg-emerald-500' : 'bg-brand-600')}
-                          title={p.title || p.caption || ''}
+                          title={postTitle(p)}
                         >
-                          {p.title || p.caption || 'Postingan'}
+                          {postTitle(p)}
                         </div>
                       );
                     })}
@@ -258,17 +258,19 @@ export function Posts() {
                     </div>
                   </div>
                   <p className="line-clamp-2 min-h-6 text-sm font-bold text-slate-900">
-                    {post.title || (post.caption ? post.caption.slice(0, 50) : 'Tanpa Judul')}
+                    {postTitle(post)}
                   </p>
-                  <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-500">
-                    {post.title ? post.caption : ''}
-                  </p>
-                  <div className="mt-3 flex items-center gap-3 text-xs text-slate-400">
-                    <span>{timeAgo(post.createdAt)}</span>
+                  {post.title && post.caption && (
+                    <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-slate-500">
+                      {post.caption}
+                    </p>
+                  )}
+                  <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+                    <span>Dibuat {formatDateTime(post.createdAt)}</span>
                     {post.scheduledAt && (
                       <span className="inline-flex items-center gap-1">
                         <CalendarClock className="h-3.5 w-3.5" />
-                        {formatDate(post.scheduledAt)}
+                        Jadwal {formatDate(post.scheduledAt, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                       </span>
                     )}
                   </div>

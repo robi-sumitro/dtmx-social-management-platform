@@ -29,6 +29,7 @@ import { Accounts } from '@/pages/app/Accounts';
 import { Billing } from '@/pages/app/Billing';
 import { Settings } from '@/pages/app/Settings';
 import { AutoReplies } from '@/pages/app/AutoReplies';
+import { Notifications } from '@/pages/app/Notifications';
 
 const Admin = lazy(() => import('@/pages/app/admin/Admin').then((m) => ({ default: m.Admin })));
 
@@ -90,6 +91,7 @@ export function App() {
                   <Route path="auto-replies" element={<AutoReplies />} />
                   <Route path="accounts" element={<Accounts />} />
                   <Route path="billing" element={<Billing />} />
+                  <Route path="notifications" element={<Notifications />} />
                   <Route path="settings" element={<Settings />} />
                   <Route
                     path="admin"

@@ -16,6 +16,7 @@ import {
   Zap,
   Bot,
   User as UserIcon,
+  Bell,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
@@ -35,6 +36,7 @@ const NAV: NavItem[] = [
   { to: '/app/media', label: 'Media Library', icon: ImageIcon },
   { to: '/app/accounts', label: 'Akun Sosial', icon: Share2 },
   { to: '/app/billing', label: 'Billing & Paket', icon: CreditCard },
+  { to: '/app/notifications', label: 'Notifikasi', icon: Bell },
   { to: '/app/settings', label: 'Pengaturan', icon: Settings },
 ];
 

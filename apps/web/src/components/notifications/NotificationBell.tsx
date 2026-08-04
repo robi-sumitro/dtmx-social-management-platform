@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Bell, Check, CheckCheck, X, Sparkles, RefreshCw, Receipt, Send, Info } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Notification } from '@/lib/types';
@@ -15,6 +15,8 @@ const TYPE_ICON: Record<string, { icon: React.ReactNode; className: string }> = 
   info: { icon: <Info className="h-4 w-4" />, className: 'bg-slate-50 text-slate-600' },
   system: { icon: <Info className="h-4 w-4" />, className: 'bg-slate-50 text-slate-500' },
 };
+
+export { TYPE_ICON };
 
 export function NotificationBell() {
   const navigate = useNavigate();
@@ -122,6 +124,13 @@ export function NotificationBell() {
                   Tandai dibaca
                 </button>
               )}
+              <Link
+                to="/app/notifications"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-slate-500 transition hover:bg-slate-100"
+              >
+                Lihat semua
+              </Link>
               <button onClick={() => setOpen(false)} className="rounded-lg p-1 text-slate-400 transition hover:bg-slate-100" aria-label="Tutup">
                 <X className="h-4 w-4" />
               </button>

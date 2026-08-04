@@ -14,7 +14,8 @@ import { useAuth } from '@/lib/auth';
 import { useFetch } from '@/lib/useApi';
 import { api } from '@/lib/api';
 import type { SocialAccount, Post, UsageResponse, AiStatus, InboxListResponse, AnalyticsSummary } from '@/lib/types';
-import { formatDate, timeAgo, postStatusMeta, cn } from '@/lib/utils';
+import { formatDate, formatDateTime, postStatusMeta, postTitle, cn } from '@/lib/utils';
+import { getActiveTimezone } from '@/lib/timezone';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { StatCard, PlatformIcon } from '@/components/shared/PageHeader';
 import { Badge } from '@/components/ui/Badge';
@@ -44,7 +45,7 @@ export function Dashboard() {
   const draftCount = posts.data?.filter((p) => p.status === 'draft').length ?? 0;
   const newInbox = inbox.data?.total ?? 0;
   const recentPosts = (posts.data ?? []).slice(0, 5);
-  const today = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const today = new Date().toLocaleDateString('id-ID', { timeZone: getActiveTimezone(), weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const stats = analytics.data;
 
   return (
@@ -210,12 +211,17 @@ export function Dashboard() {
               {recentPosts.map((post) => {
                 const meta = postStatusMeta(post.status);
                 return (
-                  <Link key={post.id} to="/app/posts" className="flex items-center gap-4 px-5 py-3.5 transition hover:bg-slate-50 sm:px-6">
+                  <Link key={post.id} to={`/app/posts/${post.id}`} className="flex items-center gap-4 px-5 py-3.5 transition hover:bg-slate-50 sm:px-6">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-slate-800">{post.caption || post.title || 'Tanpa caption'}</p>
-                      <div className="mt-1 flex items-center gap-3 text-xs text-slate-400">
-                        <span>{timeAgo(post.createdAt)}</span>
-                        {post.scheduledAt && <span>Jadwal: {formatDate(post.scheduledAt)}</span>}
+                      <p className="truncate text-sm font-semibold text-slate-800">{postTitle(post)}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+                        <span>Dibuat {formatDateTime(post.createdAt)}</span>
+                        {post.scheduledAt && (
+                          <span className="inline-flex items-center gap-1">
+                            <CalendarClock className="h-3.5 w-3.5" />
+                            Jadwal {formatDate(post.scheduledAt, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">

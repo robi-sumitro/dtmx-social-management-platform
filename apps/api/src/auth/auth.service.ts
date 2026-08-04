@@ -60,7 +60,7 @@ export class AuthService {
       where: { id },
       select: {
         id: true, email: true, username: true, fullName: true, avatar: true,
-        role: true, isActive: true, quotaAi: true, lastLoginAt: true, createdAt: true,
+        role: true, isActive: true, quotaAi: true, timezone: true, lastLoginAt: true, createdAt: true,
       },
     });
     if (!user) throw new UnauthorizedException('User tidak ditemukan');

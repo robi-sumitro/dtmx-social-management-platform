@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { api, getAccessToken, getRefreshToken, setTokens } from './api';
+import { detectTimezone, isTimezoneAuto, setActiveTimezone } from './timezone';
 import type { AuthTokens, User } from './types';
 
 interface AuthContextValue {
@@ -18,6 +19,28 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function applyTimezone(me: User | null): User | null {
+  if (!me) {
+    setActiveTimezone(null);
+    return null;
+  }
+  setActiveTimezone(isTimezoneAuto() ? detectTimezone() : me.timezone);
+  return me;
+}
+
+function syncTimezone(me: User): void {
+  const detected = detectTimezone();
+  const saved = me.timezone || '';
+  if (isTimezoneAuto() && saved !== detected) {
+    void api
+      .patch<User>('/users/me', { timezone: detected })
+      .then((updated) => {
+        setActiveTimezone(updated.timezone || detected);
+      })
+      .catch(() => undefined);
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,7 +53,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     try {
       const me = await api.get<User>('/auth/me');
+      applyTimezone(me);
       setUser(me);
+      syncTimezone(me);
     } catch {
       setUser(null);
     } finally {
@@ -46,20 +71,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await api.post<AuthTokens>('/auth/login', { email, password });
     setTokens(res);
     const me = await api.get<User>('/auth/me');
+    applyTimezone(me);
     setUser(me);
+    syncTimezone(me);
   }, []);
 
   const register = useCallback(async (data: { email: string; username: string; password: string; fullName?: string }) => {
     const res = await api.post<AuthTokens>('/auth/register', data);
     setTokens(res);
     const me = await api.get<User>('/auth/me');
+    applyTimezone(me);
     setUser(me);
+    syncTimezone(me);
   }, []);
 
   const oauthCallback = useCallback(async (accessToken: string, refreshToken: string) => {
     setTokens({ accessToken, refreshToken, user: { id: '', email: '', role: 'user' } });
     const me = await api.get<User>('/auth/me');
+    applyTimezone(me);
     setUser(me);
+    syncTimezone(me);
   }, []);
 
   const logout = useCallback(() => {
@@ -71,12 +102,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setTokens(null);
     setUser(null);
+    applyTimezone(null);
   }, []);
 
   const refreshProfile = useCallback(async () => {
     if (!getAccessToken() && !getRefreshToken()) return;
     try {
       const me = await api.get<User>('/auth/me');
+      applyTimezone(me);
       setUser(me);
     } catch {
       setUser(null);

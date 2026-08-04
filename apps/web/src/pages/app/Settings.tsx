@@ -1,12 +1,20 @@
 import { useRef, useState } from 'react';
-import { User as UserIcon, Lock, KeyRound, Camera, LogOut, Save, ShieldCheck, Facebook, Check, X } from 'lucide-react';
+import { User as UserIcon, Lock, KeyRound, Camera, LogOut, Save, ShieldCheck, Facebook, Check, X, Globe } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api, mediaUrl } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import {
+  detectTimezone,
+  getManualTimezone,
+  isValidTimezone,
+  setActiveTimezone,
+  setManualTimezone,
+  TIMEZONE_OPTIONS,
+} from '@/lib/timezone';
 import type { User, MediaFile } from '@/lib/types';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
-import { Input } from '@/components/ui/Field';
+import { Input, Select } from '@/components/ui/Field';
 import { Button } from '@/components/ui/Button';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -34,6 +42,20 @@ export function Settings() {
   const [savingPw, setSavingPw] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [pwErrors, setPwErrors] = useState<Record<string, string>>({});
+  const [timezone, setTimezone] = useState<string>(getManualTimezone() ?? '');
+  const [savingTimezone, setSavingTimezone] = useState(false);
+
+  const detectedZone = detectTimezone();
+  const activeZone = isValidTimezone(timezone) ? timezone : detectedZone;
+  const nowInTz = new Date().toLocaleString('id-ID', {
+    timeZone: activeZone,
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
   const handleAvatarChange = async (file: File | null) => {
     if (!file) return;
@@ -92,6 +114,23 @@ export function Settings() {
     }
   };
 
+  const saveTimezone = async () => {
+    setSavingTimezone(true);
+    try {
+      const target = isValidTimezone(timezone) ? timezone : detectedZone;
+      setManualTimezone(isValidTimezone(timezone) ? timezone : null);
+      const updated = await api.patch<User>('/users/me', { timezone: target });
+      setActiveTimezone(updated.timezone || target);
+      updateUser(updated);
+      toast.success('Zona waktu diperbarui', `Semua jadwal ditampilkan dalam ${updated.timezone || target}.`);
+      await refreshProfile();
+    } catch (err) {
+      toast.error('Gagal memperbarui zona waktu', err instanceof Error ? err.message : 'Terjadi kesalahan');
+    } finally {
+      setSavingTimezone(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-3xl animate-fade-in">
       <PageHeader title="Pengaturan" description="Kelola profil dan keamanan akun kamu." />
@@ -141,6 +180,39 @@ export function Settings() {
           <div className="flex justify-end">
             <Button onClick={() => void saveProfile()} loading={savingProfile} icon={!savingProfile ? <Save className="h-4 w-4" /> : undefined}>
               Simpan Profil
+            </Button>
+          </div>
+        </CardBody>
+      </Card>
+
+      <Card className="mb-6">
+        <CardHeader
+          icon={<Globe className="h-4 w-4" />}
+          title="Zona Waktu"
+          description="Tanggal dan jadwal posting ditampilkan sesuai zona waktu ini."
+        />
+        <CardBody className="space-y-4">
+          <Select
+            label="Zona Waktu"
+            value={timezone}
+            onChange={(e) => setTimezone(e.target.value)}
+            hint={timezone ? 'Overrides dipilih manual. Pilih "Otomatis" untuk mengikuti perangkat.' : `Terdeteksi otomatis dari perangkat (${detectedZone}).`}
+          >
+            <option value="">Otomatis (deteksi perangkat)</option>
+            {TIMEZONE_OPTIONS.map((tz) => (
+              <option key={tz} value={tz}>{tz}</option>
+            ))}
+          </Select>
+          <div className="flex items-center justify-between gap-4 rounded-xl bg-slate-50 px-4 py-3">
+            <div>
+              <p className="text-sm font-medium text-slate-700">Waktu sekarang</p>
+              <p className="text-xs text-slate-400">{activeZone}</p>
+            </div>
+            <p className="text-sm font-semibold text-slate-800">{nowInTz}</p>
+          </div>
+          <div className="flex justify-end">
+            <Button variant="dark" onClick={() => void saveTimezone()} loading={savingTimezone} icon={!savingTimezone ? <Save className="h-4 w-4" /> : undefined}>
+              Simpan Zona Waktu
             </Button>
           </div>
         </CardBody>

@@ -8,11 +8,13 @@ import {
   Link2,
   Copy,
   Check,
+  Play,
+  RefreshCw,
 } from 'lucide-react';
 import { useFetch } from '@/lib/useApi';
 import { api, mediaUrl } from '@/lib/api';
 import type { MediaFile } from '@/lib/types';
-import { cn, formatBytes, formatDate } from '@/lib/utils';
+import { cn, formatBytes, formatDate, formatDuration } from '@/lib/utils';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -22,9 +24,11 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 
-function MediaPreview({ file }: { file: MediaFile }) {
+function MediaPreview({ file, onUpdated }: { file: MediaFile; onUpdated: () => void }) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const toast = useToast();
   const url = mediaUrl(file.filename);
 
   const copyUrl = async () => {
@@ -37,13 +41,58 @@ function MediaPreview({ file }: { file: MediaFile }) {
     }
   };
 
+  const regenerateThumb = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setRegenerating(true);
+    try {
+      await api.post(`/media/${file.id}/thumbnail`);
+      toast.success('Thumbnail dibuat', 'Thumbnail video berhasil diperbarui.');
+      onUpdated();
+    } catch (err) {
+      toast.error('Gagal membuat thumbnail', err instanceof Error ? err.message : 'Terjadi kesalahan');
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
   return (
     <>
       <Card className="group overflow-hidden">
         <button className="block w-full" onClick={() => setPreviewOpen(true)}>
           {file.fileType === 'video' ? (
-            <div className="flex h-40 items-center justify-center bg-slate-900">
-              <Film className="h-10 w-10 text-slate-500" />
+            <div className="relative h-40 w-full overflow-hidden bg-slate-900">
+              {file.thumbnail ? (
+                <img src={mediaUrl(file.thumbnail)} alt={file.originalName} className="h-full w-full object-cover" loading="lazy" />
+              ) : (
+                <div className="flex h-full w-full flex-col items-center justify-center gap-1.5">
+                  <Film className="h-10 w-10 text-slate-500" />
+                  <span className="text-xs text-slate-500">Video</span>
+                </div>
+              )}
+              <span className="absolute bottom-2 right-2 flex items-center gap-1 rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white">
+                <Play className="h-3 w-3" />
+                {file.duration ? formatDuration(file.duration) : 'Video'}
+              </span>
+              {!file.thumbnail && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={regenerateThumb}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      void regenerateThumb(e as unknown as React.MouseEvent);
+                    }
+                  }}
+                  className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/30 transition hover:bg-black/50"
+                >
+                  {regenerating ? (
+                    <RefreshCw className="h-5 w-5 animate-spin text-white" />
+                  ) : (
+                    <span className="rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm">Buat thumbnail</span>
+                  )}
+                </span>
+              )}
             </div>
           ) : file.fileType === 'text' ? (
             <div className="flex h-40 items-center justify-center bg-brand-gradient-soft">
@@ -58,7 +107,9 @@ function MediaPreview({ file }: { file: MediaFile }) {
             {file.originalName}
           </p>
           <p className="mt-0.5 text-xs text-slate-400">
-            {formatBytes(file.fileSize)} · {formatDate(file.createdAt)}
+            {formatBytes(file.fileSize)}
+            {file.duration ? ` · ${formatDuration(file.duration)}` : ''}
+            {file.thumbnail ? ' · thumb' : ''} · {formatDate(file.createdAt)}
           </p>
           <div className="mt-3 flex items-center gap-1.5">
             <Button size="xs" variant="ghost" onClick={copyUrl} icon={copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}>
@@ -78,7 +129,10 @@ function MediaPreview({ file }: { file: MediaFile }) {
           <div className="mt-4 flex w-full items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-slate-900">{file.originalName}</p>
-              <p className="text-xs text-slate-400">{formatBytes(file.fileSize)} · {formatDate(file.createdAt)}</p>
+              <p className="text-xs text-slate-400">
+                {formatBytes(file.fileSize)}
+                {file.duration ? ` · ${formatDuration(file.duration)}` : ''} · {formatDate(file.createdAt)}
+              </p>
             </div>
             <Button variant="secondary" size="sm" onClick={copyUrl} icon={copied ? <Check className="h-4 w-4" /> : <Link2 className="h-4 w-4" />}>
               {copied ? 'Tersalin' : 'Salin URL'}
@@ -190,7 +244,7 @@ export function Media() {
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {files.map((file) => (
             <div key={file.id} className="relative group">
-              <MediaPreview file={file} />
+              <MediaPreview file={file} onUpdated={() => refetch()} />
               <button
                 onClick={() => setDeleteTarget(file)}
                 className="absolute right-2.5 top-2.5 rounded-lg bg-white/90 p-2 text-rose-500 opacity-0 shadow-sm transition hover:bg-rose-50 group-hover:opacity-100"

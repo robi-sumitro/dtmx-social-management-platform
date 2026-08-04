@@ -56,6 +56,11 @@ export class MediaController {
     return this.media.list(userId);
   }
 
+  @Post(':id/thumbnail')
+  thumbnail(@Param('id') id: string, @CurrentUser('id') userId: string) {
+    return this.media.regenerateThumbnail(userId, id);
+  }
+
   @Delete(':id')
   remove(@Param('id') id: string, @CurrentUser('id') userId: string) {
     return this.media.remove(userId, id);

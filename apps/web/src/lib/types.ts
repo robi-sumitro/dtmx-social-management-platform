@@ -7,6 +7,7 @@ export interface User {
   role: 'user' | 'admin';
   isActive?: boolean;
   quotaAi?: number;
+  timezone?: string;
   lastLoginAt?: string;
   createdAt: string;
   postCount?: number;

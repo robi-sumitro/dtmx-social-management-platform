@@ -23,8 +23,11 @@ import { LogoLight } from '@/components/ui/Logo';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import type { LucideIcon } from 'lucide-react';
 
-const NAV = [
+type NavItem = { to: string; label: string; icon: LucideIcon; end?: boolean; badge?: string };
+
+const NAV: NavItem[] = [
   { to: '/app', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/app/posts', label: 'Postingan', icon: FileText },
   { to: '/app/inbox', label: 'Inbox', icon: Inbox },

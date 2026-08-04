@@ -13,7 +13,7 @@ import {
 import { useAuth } from '@/lib/auth';
 import { useFetch } from '@/lib/useApi';
 import { api } from '@/lib/api';
-import type { SocialAccount, Post, UsageResponse, AiStatus, InboxListResponse } from '@/lib/types';
+import type { SocialAccount, Post, UsageResponse, AiStatus, InboxListResponse, AnalyticsSummary } from '@/lib/types';
 import { formatDate, timeAgo, postStatusMeta, cn } from '@/lib/utils';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { StatCard, PlatformIcon } from '@/components/shared/PageHeader';
@@ -21,6 +21,12 @@ import { Badge } from '@/components/ui/Badge';
 import { PageLoader, Skeleton } from '@/components/ui/Loading';
 import { UsageBar } from '@/components/ui/Progress';
 import { EmptyState } from '@/components/ui/EmptyState';
+
+function formatCompact(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return value.toLocaleString('id-ID');
+}
 
 export function Dashboard() {
   const { user } = useAuth();
@@ -31,6 +37,7 @@ export function Dashboard() {
   const aiStatus = useFetch<AiStatus>(() => api.get('/ai/status'));
   const posts = useFetch<Post[]>(() => api.get('/posts'));
   const inbox = useFetch<InboxListResponse>(() => api.get('/inbox?limit=1'));
+  const analytics = useFetch<AnalyticsSummary>(() => api.get('/analytics/summary'));
 
   const activeAccounts = accounts.data?.filter((a) => a.isActive) ?? [];
   const scheduledCount = posts.data?.filter((p) => p.status === 'scheduled').length ?? 0;
@@ -38,6 +45,7 @@ export function Dashboard() {
   const newInbox = inbox.data?.total ?? 0;
   const recentPosts = (posts.data ?? []).slice(0, 5);
   const today = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const stats = analytics.data;
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -61,22 +69,22 @@ export function Dashboard() {
       <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Total Jangkauan (Reach)"
-          value="48.2K"
-          hint="+12.4% dari bulan lalu"
+          value={stats ? formatCompact(stats.reach) : '—'}
+          hint={stats ? `${stats.byAccount.length} akun · 30 hari terakhir` : analytics.loading ? 'Memuat data...' : 'Hubungkan akun untuk melihat data'}
           icon={<TrendingUp className="h-5 w-5" />}
           accent="brand"
         />
         <StatCard
           label="Engagement Rate"
-          value="4.8%"
-          hint="Rata-rata interaksi post"
+          value={stats ? `${stats.engagementRate.toFixed(1)}%` : '—'}
+          hint={stats ? 'Rata-rata interaksi post' : analytics.loading ? 'Memuat data...' : 'Belum ada data'}
           icon={<Share2 className="h-5 w-5" />}
           accent="emerald"
         />
         <StatCard
           label="Total Klik Tautan"
-          value="1,420"
-          hint="Dari 24 postingan terbit"
+          value={stats ? formatCompact(stats.linkClicks) : '—'}
+          hint={stats ? `Dari ${stats.publishedPosts} postingan terbit` : analytics.loading ? 'Memuat data...' : 'Belum ada data'}
           icon={<ArrowUpRight className="h-5 w-5" />}
           accent="amber"
         />

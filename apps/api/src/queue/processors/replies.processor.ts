@@ -25,6 +25,7 @@ export class RepliesProcessor extends WorkerHost {
       text,
       authorId: inbox.authorId,
       targetId: inbox.sourceId,
+      kind: inbox.kind,
     });
 
     await this.prisma.inboxItem.update({

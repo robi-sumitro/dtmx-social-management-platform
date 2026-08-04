@@ -72,4 +72,10 @@ export class ScheduledJobsService implements OnModuleInit {
     });
     this.logger.log(`Touched ${res.count} social accounts`);
   }
+
+  // Pull new comments/DMs from connected META accounts every 5 minutes.
+  @Cron(CronExpression.EVERY_5_MINUTES)
+  async syncInbox() {
+    await this.bulk.enqueueAccountSync({ action: 'pull_inbox' });
+  }
 }

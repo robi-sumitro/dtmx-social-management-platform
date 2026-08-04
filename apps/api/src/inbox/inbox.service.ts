@@ -54,6 +54,8 @@ export class InboxService {
       where: { id: inboxId },
       data: { status: 'replied', repliedAt: new Date() },
     });
+    // Kirim balasan ke platform lewat antrian (komentar/DM).
+    await this.bulk.enqueueReply({ inboxId: item.id, accountId: item.accountId, text: replyContent });
     return { inboxId, status: 'replied', replyContent, aiUsed };
   }
 
@@ -75,6 +77,7 @@ export class InboxService {
       where: { id: inboxId },
       data: { status: 'replied', repliedAt: new Date() },
     });
+    await this.bulk.enqueueReply({ inboxId: item.id, accountId: item.accountId, text: reply });
     return { inboxId, status: 'replied', replyContent: reply };
   }
 
@@ -104,8 +107,6 @@ export class InboxService {
         accountId: item.accountId,
       },
     });
-    // also enqueue a provider API reply
-    await this.bulk.enqueueReply({ inboxId: item.id, accountId: item.accountId, text: result.content });
     return result.content;
   }
 

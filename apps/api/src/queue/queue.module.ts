@@ -5,8 +5,10 @@ import { BulkProcessor } from './bulk.processor';
 import { EmailProcessor } from './processors/email.processor';
 import { RepliesProcessor } from './processors/replies.processor';
 import { PublishingProcessor } from './processors/publishing.processor';
+import { SyncProcessor } from './processors/sync.processor';
 import { PlatformsModule } from '../platforms/platforms.module';
 import { EmailModule } from '../auth/email.module';
+import { SocialAccountsModule } from '../social-accounts/social-accounts.module';
 
 const connection = (config: ConfigService) => ({
   host: config.get<string>('REDIS_HOST', 'localhost'),
@@ -32,8 +34,9 @@ const connection = (config: ConfigService) => ({
     ),
     PlatformsModule,
     EmailModule,
+    SocialAccountsModule,
   ],
-  providers: [BulkProcessor, EmailProcessor, RepliesProcessor, PublishingProcessor],
+  providers: [BulkProcessor, EmailProcessor, RepliesProcessor, PublishingProcessor, SyncProcessor],
   exports: [BulkProcessor],
 })
 export class QueueModule {}

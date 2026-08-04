@@ -1,6 +1,12 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { SocialAccount } from '@prisma/client';
-import { PlatformAdapter, PublishContext, ReplyContext } from './platform.types';
+import {
+  InboxPullItem,
+  PlatformAdapter,
+  PlatformInsights,
+  PublishContext,
+  ReplyContext,
+} from './platform.types';
 import { FacebookProvider } from './providers/facebook.provider';
 import { InstagramProvider } from './providers/instagram.provider';
 import { YoutubeProvider } from './providers/youtube.provider';
@@ -58,5 +64,19 @@ export class PlatformsService implements OnModuleInit {
     if (typeof adapter.reply !== 'function') return false;
 const result = await adapter.reply(account, ctx);
     return result.ok;
+  }
+
+  /** Pull inbox items (comments/DMs) from the platform. Returns [] when unsupported. */
+  async pullInbox(account: SocialAccount, since?: Date): Promise<InboxPullItem[]> {
+    const adapter = this.adapterFor(account);
+    if (typeof adapter.pullInbox !== 'function') return [];
+    return adapter.pullInbox(account, since);
+  }
+
+  /** Fetch aggregated engagement insights. Returns null when unsupported. */
+  async insights(account: SocialAccount, since?: Date): Promise<PlatformInsights | null> {
+    const adapter = this.adapterFor(account);
+    if (typeof adapter.insights !== 'function') return null;
+    return adapter.insights(account, since);
   }
 }

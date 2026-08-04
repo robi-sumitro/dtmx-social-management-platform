@@ -15,12 +15,27 @@ const TIKTOK_TOKEN = 'https://open.tiktokapis.com/v2/oauth/token/';
 const TIKTOK_API = 'https://open.tiktokapis.com/v2';
 
 const CONNECT_SCOPES: Record<string, string> = {
-  facebook: ['pages_show_list', 'pages_manage_posts', 'pages_read_engagement'].join(','),
+  facebook: [
+    'pages_show_list',
+    'pages_manage_posts',
+    'pages_read_engagement',
+    // Inbox: komentar FB, komentar & DM Instagram (butuh App Mode Live + Advanced Access)
+    'pages_read_user_content',
+    'pages_manage_metadata',
+    // DM Facebook / Messenger
+    'pages_messaging',
+    'instagram_basic',
+    'instagram_manage_comments',
+    'instagram_manage_messages',
+    'instagram_manage_engagement',
+  ].join(','),
   youtube: [
     'https://www.googleapis.com/auth/youtube.readonly',
     'https://www.googleapis.com/auth/youtube.upload',
+    // Inbox: baca komentar (readonly) & balas komentar (force-ssl)
+    'https://www.googleapis.com/auth/youtube.force-ssl',
   ].join(' '),
-  tiktok: 'user.info.basic,video.publish',
+  tiktok: 'user.info.basic,video.publish,video.list,comment.list,comment.reply',
 };
 
 /**
@@ -170,7 +185,11 @@ export class SocialOAuthService {
             parentId: saved.id,
           });
           connected += 1;
+          // Subscribe IG account to message webhooks (untuk DM Instagram).
+          await this.subscribeWebhooks(ig.id, pageToken);
         }
+        // Subscribe page to Messenger messages (untuk DM Facebook).
+        await this.subscribeWebhooks(page.id, pageToken);
       } catch (err) {
         this.logger.warn(`Failed to connect page ${page.id}: ${(err as Error).message}`);
         errors.push((err as Error).message);
@@ -185,6 +204,21 @@ export class SocialOAuthService {
       return `${getFrontendUrl(this.config)}/app/accounts?connected=${connected}&error=${encodeURIComponent(errors[0])}`;
     }
     return `${getFrontendUrl(this.config)}/app/accounts?connected=${connected}`;
+  }
+
+  /**
+   * Subscribe a page (Messenger) or IG account (DM) to the app's webhooks.
+   * Needed so the page/IG inbox conversations can be read via Graph API.
+   */
+  private async subscribeWebhooks(nodeId: string, token: string) {
+    try {
+      await axios.post(`${FB_GRAPH}/${nodeId}/subscribed_apps`, null, {
+        params: { subscribed_fields: 'messages,feed', access_token: token },
+      });
+      this.logger.log(`Subscribed ${nodeId} to messages webhook`);
+    } catch (err) {
+      this.logger.warn(`Subscribe webhook failed for ${nodeId}: ${(err as Error).message}`);
+    }
   }
 
   private async handleYoutube(userId: string, code: string, base: string) {

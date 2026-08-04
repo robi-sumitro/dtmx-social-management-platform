@@ -20,6 +20,7 @@ import { AdminModule } from './admin/admin.module';
 import { QueueModule } from './queue/queue.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { PlatformsModule } from './platforms/platforms.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AppController } from './app.controller';
 
@@ -73,6 +74,7 @@ import { AppController } from './app.controller';
     QueueModule,
     SchedulerModule,
     PlatformsModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
 })

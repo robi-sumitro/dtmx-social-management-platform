@@ -212,6 +212,26 @@ export interface InboxListResponse {
   limit: number;
 }
 
+export interface AccountInsights {
+  accountId: string;
+  accountName: string;
+  provider: string;
+  avatarUrl?: string | null;
+  reach: number;
+  engagementRate: number;
+  linkClicks: number;
+  error?: string;
+}
+
+export interface AnalyticsSummary {
+  reach: number;
+  engagementRate: number;
+  linkClicks: number;
+  publishedPosts: number;
+  lastSyncedAt?: string | null;
+  byAccount: AccountInsights[];
+}
+
 export interface PendingSubscription {
   id: string;
   status: string;

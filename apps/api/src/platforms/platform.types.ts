@@ -20,6 +20,8 @@ export interface ReplyContext {
   text: string;
   authorId?: string | null;
   targetId?: string | null;
+  /** Inbox item kind (comment|dm) — lets adapters pick the right reply endpoint. */
+  kind?: string | null;
 }
 
 /** Result of a single platform operation. */
@@ -38,6 +40,14 @@ export interface InboxPullItem {
   mediaUrl?: string;
 }
 
+/** Aggregated engagement metrics (typically last 30 days). */
+export interface PlatformInsights {
+  reach: number;
+  impressions: number;
+  engagementCount: number;
+  linkClicks: number;
+}
+
 export interface PlatformAdapter {
   readonly provider: string;
   /** Publish a post to a connected account. Throws on hard failure. */
@@ -46,4 +56,6 @@ export interface PlatformAdapter {
   reply?(account: SocialAccount, ctx: ReplyContext): Promise<PlatformResult>;
   /** Pull new comments/DMs/mentions for an account. */
   pullInbox?(account: SocialAccount, since?: Date): Promise<InboxPullItem[]>;
+  /** Fetch aggregated engagement metrics for an account. */
+  insights?(account: SocialAccount, since?: Date): Promise<PlatformInsights | null>;
 }

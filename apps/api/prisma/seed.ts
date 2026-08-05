@@ -29,7 +29,6 @@ const plans = [
     maxAccounts: 1,
     maxPostsPerMonth: 10,
     aiPerMonth: 20,
-    apiQuotaPerDay: 100,
   },
   {
     name: 'Basic',
@@ -41,7 +40,6 @@ const plans = [
     maxAccounts: 3,
     maxPostsPerMonth: 50,
     aiPerMonth: 200,
-    apiQuotaPerDay: 300,
   },
   {
     name: 'Pro',
@@ -53,7 +51,6 @@ const plans = [
     maxAccounts: 8,
     maxPostsPerMonth: 200,
     aiPerMonth: 1000,
-    apiQuotaPerDay: 1000,
   },
   {
     name: 'Enterprise',
@@ -65,7 +62,6 @@ const plans = [
     maxAccounts: 20,
     maxPostsPerMonth: 1000,
     aiPerMonth: 5000,
-    apiQuotaPerDay: 5000,
   },
 ];
 

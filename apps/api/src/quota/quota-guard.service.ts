@@ -14,8 +14,9 @@ export class QuotaExceededError extends Error {
  * per proyek Google Cloud dan dibagi semua channel):
  *  - penjaga GLOBAL: memastikan total unit yang tercatat per hari tidak
  *    melewati YOUTUBE_QUOTA_DAILY_LIMIT (default 9.000, sisanya buffer).
- *  - penjaga PER-USER: kuota operasi tulis per user/hari dari Plan
- *    (apiQuotaPerDay). Baca (1 unit) tidak dihitung ke kuota user.
+ *  - penjaga PER-USER (opsional): jatah operasi tulis harian per user lewat
+ *    env YOUTUBE_USER_DAILY_WRITE_LIMIT. Jika 0/tidak diset, tidak ada cap
+ *    per user (hanya cap global). Baca (1 unit) tidak dihitung ke jatah user.
  */
 @Injectable()
 export class QuotaGuardService {
@@ -67,13 +68,13 @@ export class QuotaGuardService {
         return { allowed: false, reason: 'Kuota API harian platform hampir habis — operasi ditunda.' };
       }
     }
-    const planLimit = await this.userPlanLimit(userId);
-    if (planLimit > 0) {
+    const writeLimit = this.userWriteLimit();
+    if (writeLimit > 0) {
       const userUsed = await this.writeUsed(provider, userId, day);
-      if (userUsed + units > planLimit) {
+      if (userUsed + units > writeLimit) {
         return {
           allowed: false,
-          reason: `Kuota balasan harian akunmu habis (${userUsed}/${planLimit} unit). Tunggu reset besok atau upgrade paket.`,
+          reason: `Kuota balasan harian akunmu habis (${userUsed}/${writeLimit} unit). Tunggu reset besok.`,
         };
       }
     }
@@ -98,12 +99,12 @@ export class QuotaGuardService {
     }
     const isWrite = Boolean(opts?.write);
     if (isWrite) {
-      const planLimit = await this.userPlanLimit(userId);
-      if (planLimit > 0) {
+      const writeLimit = this.userWriteLimit();
+      if (writeLimit > 0) {
         const userUsed = await this.writeUsed(provider, userId, day);
-        if (userUsed + units > planLimit) {
+        if (userUsed + units > writeLimit) {
           throw new QuotaExceededError(
-            `Kuota balasan harian akunmu habis (${userUsed}/${planLimit} unit). Tunggu reset besok atau upgrade paket.`,
+            `Kuota balasan harian akunmu habis (${userUsed}/${writeLimit} unit). Tunggu reset besok.`,
           );
         }
       }
@@ -117,11 +118,8 @@ export class QuotaGuardService {
     });
   }
 
-  private async userPlanLimit(userId: string): Promise<number> {
-    const sub = await this.prisma.subscription.findFirst({
-      where: { userId, status: 'active' },
-      include: { plan: true },
-    });
-    return sub?.plan?.apiQuotaPerDay ?? 0;
+  private userWriteLimit(): number {
+    // Jatah operasi tulis per user/hari. 0 = tanpa cap per user (hanya global).
+    return Number(process.env.YOUTUBE_USER_DAILY_WRITE_LIMIT || 0);
   }
 }

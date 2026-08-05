@@ -57,7 +57,6 @@ model Plan {
   maxAccounts       Int
   maxPostsPerMonth  Int
   aiPerMonth        Int
-  apiQuotaPerDay    Int     @default(500)
   isActive          Boolean  @default(true)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

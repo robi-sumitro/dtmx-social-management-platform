@@ -33,7 +33,7 @@ export class TiktokProvider implements PlatformAdapter {
     const { data: init } = await axios.post(
       `${API}/post/publish/video/init/`,
       {
-        post_info: { title: post.caption || post.title || '', privacy_level: 'SELF_ONLY' },
+        post_info: { title: post.caption || post.title || '', privacy_level: 'PUBLIC_TO_EVERYONE' },
         source_info: { source: 'PULL_FROM_URL', video_url: `${post.mediaBaseUrl}/${video.filename}` },
       },
       { headers: this.headers(account) },

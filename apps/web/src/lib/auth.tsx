@@ -1,8 +1,26 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { api, getAccessToken, getRefreshToken, setTokens } from './api';
-import { detectTimezone, isTimezoneAuto, setActiveTimezone } from './timezone';
+import { api, API_BASE, getAccessToken, getRefreshToken, setTokens } from './api';
+import { detectTimezone, isTimezoneAuto, setActiveTimezone, setServerClockOffset } from './timezone';
 import type { AuthTokens, User } from './types';
+
+async function syncServerClock(): Promise<void> {
+  try {
+    const before = Date.now();
+    const res = await fetch(`${API_BASE}/api/health`, { headers: { Accept: 'application/json' } });
+    const after = Date.now();
+    if (!res.ok) return;
+    const data = (await res.json()) as { time?: string };
+    if (data.time) {
+      const serverTime = new Date(data.time).getTime();
+      // Round-trip latency estimated as half the elapsed time.
+      const offset = serverTime - (before + (after - before) / 2);
+      setServerClockOffset(offset);
+    }
+  } catch {
+    /* keep default 0 offset */
+  }
+}
 
 interface AuthContextValue {
   user: User | null;
@@ -51,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
+    void syncServerClock();
     try {
       const me = await api.get<User>('/auth/me');
       applyTimezone(me);

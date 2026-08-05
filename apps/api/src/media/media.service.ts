@@ -129,6 +129,32 @@ export class MediaService {
     });
   }
 
+  /**
+   * Accept a thumbnail image generated in the browser (canvas) so video
+   * thumbnails work even when ffmpeg is unavailable on the server.
+   */
+  async uploadThumbnail(userId: string, id: string, file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('File thumbnail wajib diunggah');
+    const media = await this.prisma.mediaFile.findFirst({ where: { id, userId } });
+    if (!media) throw new BadRequestException('Media tidak ditemukan');
+    if (media.fileType !== 'video') throw new BadRequestException('Thumbnail hanya tersedia untuk video');
+
+    const thumbFile = `${randomUUID()}.jpg`;
+    const thumbAbs = join(this.storage.uploadRoot, 'media', thumbFile);
+    await new Promise<void>((resolve, reject) => {
+      const ws = createWriteStream(thumbAbs);
+      ws.on('error', reject);
+      ws.on('finish', () => resolve());
+      ws.end(file.buffer);
+    });
+
+    const duration = media.duration ?? (await this.probeDuration(join(this.storage.uploadRoot, media.filename)));
+    return this.prisma.mediaFile.update({
+      where: { id },
+      data: { thumbnail: `media/${thumbFile}`, duration },
+    });
+  }
+
   private async probeDuration(absPath: string): Promise<number | null> {
     try {
       const { stdout } = await execFileAsync(

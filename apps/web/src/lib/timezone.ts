@@ -2,6 +2,18 @@ const MANUAL_KEY = 'dtmx:timezone:manual';
 
 let savedTimezone: string | null = null;
 
+// Offset in ms between the server clock and the device clock (serverNow - deviceNow).
+// Used so relative times ("x mnt lalu") match the server's clock instead of the device's.
+let serverClockOffset = 0;
+
+export function setServerClockOffset(offsetMs: number): void {
+  if (Number.isFinite(offsetMs)) serverClockOffset = offsetMs;
+}
+
+export function getServerNow(): Date {
+  return new Date(Date.now() + serverClockOffset);
+}
+
 export function detectTimezone(): string {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -51,6 +63,64 @@ export function setManualTimezone(tz: string | null): void {
 
 export function isTimezoneAuto(): boolean {
   return !getManualTimezone();
+}
+
+/**
+ * Convert a Date into the value expected by an `<input type="datetime-local">`
+ * rendered in the active timezone (year-month-dayThh:mm).
+ */
+export function toLocalInputValue(date?: string | Date | null): string {
+  if (!date) return '';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: getActiveTimezone(),
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(d);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}T${pad(Number(get('hour'))) || get('hour')}:${get('minute')}`;
+}
+
+/**
+ * Parse the value of an `<input type="datetime-local">` (a wall-clock time in the
+ * active timezone) back into a UTC Date without relying on the device timezone.
+ */
+export function fromLocalInputValue(value: string): Date | null {
+  if (!value) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/.exec(value);
+  if (!m) return null;
+  const [, y, mo, d, h, mi, s] = m;
+  const timeZone = getActiveTimezone();
+  const parts: Record<string, number> = {
+    year: Number(y),
+    month: Number(mo) - 1,
+    day: Number(d),
+    hour: Number(h),
+    minute: Number(mi),
+    second: Number(s || 0),
+  };
+  // Walk the date in the target zone to build a UTC instant.
+  const asUTC = Date.UTC(parts.year, parts.month, parts.day, parts.hour, parts.minute, parts.second);
+  const guess = new Date(asUTC);
+  const guessParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(guess);
+  const gp = (t: string) => Number(guessParts.find((p) => p.type === t)?.value ?? 0);
+  const diff = Date.UTC(gp('year'), gp('month') - 1, gp('day'), gp('hour'), gp('minute'), gp('second')) - asUTC;
+  return new Date(asUTC + diff);
 }
 
 export const TIMEZONE_OPTIONS: string[] = [

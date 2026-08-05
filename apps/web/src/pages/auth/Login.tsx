@@ -1,18 +1,25 @@
-import { useState } from 'react';
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
 import { AuthLayout } from './AuthLayout';
 import { Input } from '@/components/ui/Field';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/components/ui/Toast';
-import { oauthUrl } from '@/lib/api';
+import { api, oauthUrl } from '@/lib/api';
+
+interface OAuthStatus {
+  configured: boolean;
+  callbackUrl?: string;
+}
 
 export function Login() {
   const { login, isAuthenticated, loading: authLoading } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const oauthError = searchParams.get('error');
   const from = (location.state as { from?: string })?.from ?? '/app';
 
   const [email, setEmail] = useState('');
@@ -20,6 +27,20 @@ export function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [oauth, setOauth] = useState<{ google?: OAuthStatus; facebook?: OAuthStatus } | null>(null);
+
+  useEffect(() => {
+    api
+      .get<{ google: OAuthStatus; facebook: OAuthStatus }>('/auth/callback-urls')
+      .then(setOauth)
+      .catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    if (oauthError) {
+      toast.error('Login gagal', decodeURIComponent(oauthError).slice(0, 160));
+    }
+  }, [oauthError, toast]);
 
   if (authLoading) return null;
   if (isAuthenticated) return <Navigate to={from.startsWith('/app') ? from : '/app'} replace />;
@@ -106,19 +127,30 @@ export function Login() {
         <div className="grid grid-cols-2 gap-3">
           <a
             href={oauthUrl('google')}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50"
+            className={cnOauth(!oauth || !!oauth.google?.configured)}
           >
             <svg className="h-4 w-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M23.5 12.3c0-.9-.1-1.5-.3-2.2H12v4.1h6.5c-.1 1.1-.8 2.7-2.3 3.8l-.1.2 3.3 2.6.2.2c2.1-2 3.4-4.9 3.4-8.7z"/><path fill="#34A853" d="M12 24c3.1 0 5.7-1 7.6-2.8l-3.5-2.7c-1 .7-2.3 1.2-4.1 1.2-3.2 0-5.9-2.1-6.8-5l-.1.1-3.4 2.7-.1.2C3.6 21.3 7.4 24 12 24z"/><path fill="#FBBC05" d="M5.2 14.7c-.3-.7-.4-1.4-.4-2.2s.1-1.5.4-2.2l-.1-.2-3.5-2.7-.1.1C.7 9 0 11 0 12.5s.7 3.5 1.5 5l3.6-2.8z"/><path fill="#EA4335" d="M12 4.9c2 0 3.3.8 4 1.5l3-2.9C17.7 1.2 15.1 0 12 0 7.4 0 3.6 2.7 1.5 6.8l3.6 2.8C6.1 6.7 8.8 4.9 12 4.9z"/></svg>
             Google
           </a>
           <a
             href={oauthUrl('facebook')}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50"
+            className={cnOauth(!oauth || !!oauth.facebook?.configured)}
+            onClick={(e) => {
+              if (oauth && !oauth.facebook?.configured) {
+                e.preventDefault();
+                toast.error('Login Facebook belum dikonfigurasi', 'Hubungi admin agar FACEBOOK_APP_ID & FACEBOOK_APP_SECRET diisi.');
+              }
+            }}
           >
             <svg className="h-4 w-4" viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07c0 6.02 4.39 11.02 10.13 11.93v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.69 4.53-4.69 1.31 0 2.68.24 2.68.24v2.97h-1.51c-1.49 0-1.95.93-1.95 1.89v2.25h3.32l-.53 3.49h-2.79V24C19.61 23.09 24 18.09 24 12.07z"/></svg>
             Facebook
           </a>
         </div>
+        {oauth && (!oauth.google?.configured || !oauth.facebook?.configured) && (
+          <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
+            Login platform belum sepenuhnya dikonfigurasi. Hubungi administrator jika tombol di atas tidak berfungsi.
+          </p>
+        )}
 
         <p className="mt-8 text-center text-sm text-slate-500">
           Belum punya akun?{' '}
@@ -129,4 +161,10 @@ export function Login() {
       </div>
     </AuthLayout>
   );
+}
+
+function cnOauth(configured: boolean) {
+  return configured
+    ? 'inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white text-sm font-semibold text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50'
+    : 'inline-flex h-11 cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-slate-100 text-sm font-semibold text-slate-400 ring-1 ring-slate-200';
 }

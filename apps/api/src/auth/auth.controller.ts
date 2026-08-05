@@ -117,6 +117,18 @@ export class AuthController {
   }
 
   @Public()
+  @Get('oauth-failed')
+  oauthFailed(@Req() req: any, @Res() res: any) {
+    const front = getFrontendUrl(this.config);
+    const reason =
+      req.query?.error ||
+      req.query?.error_description ||
+      req.query?.error_reason ||
+      'Login gagal. Silakan coba lagi.';
+    return res.redirect(`${front}/auth/login?error=${encodeURIComponent(String(reason))}`);
+  }
+
+  @Public()
   @Get('oauth/exchange')
   oauthExchange(@Query('code') code: string) {
     const session = this.auth.consumeOauthSession(code);

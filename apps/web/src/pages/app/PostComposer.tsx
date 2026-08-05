@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -11,11 +11,14 @@ import {
   Loader2,
   Wand2,
   Hash,
+  UploadCloud,
 } from 'lucide-react';
 import { useFetch } from '@/lib/useApi';
 import { api, mediaUrl } from '@/lib/api';
 import type { Post, SocialAccount, MediaFile } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { toLocalInputValue, fromLocalInputValue } from '@/lib/timezone';
+import { extractVideoThumbnail } from '@/lib/video';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { PlatformIcon } from '@/components/shared/PageHeader';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
@@ -67,6 +70,8 @@ export function PostComposer() {
   const [busy, setBusy] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!post) return;
@@ -76,14 +81,7 @@ export function PostComposer() {
     setPostType(post.postType);
     setAccountIds((post.accounts ?? []).map((pa) => pa.accountId));
     setMediaIds((post.media ?? []).map((pm) => pm.mediaId));
-    if (post.scheduledAt) {
-      const d = new Date(post.scheduledAt);
-      const pad = (n: number) => String(n).padStart(2, '0');
-      const localStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-      setScheduledAt(localStr);
-    } else {
-      setScheduledAt('');
-    }
+    setScheduledAt(post.scheduledAt ? toLocalInputValue(post.scheduledAt) : '');
   }, [post]);
 
   const activeAccounts = useMemo(() => (accounts ?? []).filter((a) => a.isActive), [accounts]);
@@ -109,6 +107,44 @@ export function PostComposer() {
 
   const toggleMedia = (id: string) =>
     setMediaIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  const uploadMedia = async (list: FileList | null) => {
+    if (!list || list.length === 0) return;
+    setUploadingMedia(true);
+    try {
+      const files = Array.from(list);
+      const formData = new FormData();
+      files.forEach((f) => formData.append('files', f));
+      const uploaded = await api.upload<MediaFile[]>('/media/upload', formData);
+      for (let i = 0; i < uploaded.length; i++) {
+        const item = uploaded[i];
+        if (item.fileType !== 'video') continue;
+        const file = files[i];
+        if (!file) continue;
+        try {
+          const thumb = await extractVideoThumbnail(file);
+          if (!thumb) continue;
+          const thumbData = new FormData();
+          thumbData.append('thumbnail', thumb, 'thumb.jpg');
+          await api.upload(`/media/${item.id}/thumbnail-upload`, thumbData);
+        } catch {
+          /* thumbnail is optional */
+        }
+      }
+      setMediaIds((prev) => {
+        const next = [...prev];
+        uploaded.forEach((m) => {
+          if (!next.includes(m.id)) next.push(m.id);
+        });
+        return next;
+      });
+      toast.success('Media diunggah', `${uploaded.length} file ditambahkan ke postingan.`);
+    } catch (err) {
+      toast.error('Gagal unggah media', err instanceof Error ? err.message : 'Terjadi kesalahan');
+    } finally {
+      setUploadingMedia(false);
+    }
+  };
 
   const generateAI = async () => {
     if (!aiPrompt.trim()) return;
@@ -150,7 +186,7 @@ export function PostComposer() {
         postType,
         accountIds,
         mediaIds,
-        scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
+        scheduledAt: fromLocalInputValue(scheduledAt)?.toISOString(),
         action: actionValue,
       };
       if (isEditing && editId) {
@@ -276,21 +312,43 @@ export function PostComposer() {
               title="Media"
               description={selectedMedia.length ? `${selectedMedia.length} dipilih` : 'Pilih dari media library'}
               action={
-                <Link to="/app/media" className="text-sm font-semibold text-brand-600 hover:text-brand-700">
-                  Kelola Library
-                </Link>
+                <div className="flex items-center gap-3">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => mediaInputRef.current?.click()}
+                    loading={uploadingMedia}
+                    icon={!uploadingMedia ? <UploadCloud className="h-4 w-4" /> : undefined}
+                  >
+                    Unggah
+                  </Button>
+                  <Link to="/app/media" className="text-sm font-semibold text-brand-600 hover:text-brand-700">
+                    Kelola Library
+                  </Link>
+                </div>
               }
             />
             <CardBody>
+              <input
+                ref={mediaInputRef}
+                type="file"
+                multiple
+                accept="image/*,video/*"
+                className="hidden"
+                onChange={(e) => {
+                  void uploadMedia(e.target.files);
+                  e.target.value = '';
+                }}
+              />
               {mediaItems.length === 0 ? (
                 <EmptyState
                   icon={<ImageIcon className="h-6 w-6" />}
                   title="Media library kosong"
-                  description="Unggah gambar atau video terlebih dahulu agar bisa disisipkan ke postingan."
+                  description="Unggah gambar atau video sekarang agar bisa disisipkan ke postingan."
                   action={
-                    <Link to="/app/media">
-                      <Button variant="secondary" size="sm">Unggah Media</Button>
-                    </Link>
+                    <Button variant="secondary" size="sm" onClick={() => mediaInputRef.current?.click()}>
+                      Unggah Media
+                    </Button>
                   }
                 />
               ) : (

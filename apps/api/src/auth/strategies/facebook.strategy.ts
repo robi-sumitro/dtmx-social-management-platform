@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy, Profile } from 'passport-facebook';
 import { ConfigService } from '@nestjs/config';
@@ -12,14 +12,23 @@ export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
       clientID: config.get<string>('FACEBOOK_APP_ID', ''),
       clientSecret: config.get<string>('FACEBOOK_APP_SECRET', ''),
       callbackURL: `${getAppBaseUrl(config)}/api/auth/facebook/callback`,
-      scope: ['email', 'public_profile', 'pages_show_list'],
+      // Minimal, always-available login permissions. `pages_show_list` (halaman)
+      // diminta lewat alur "hubungkan akun" terpisah, bukan saat login —
+      // menghindari penolakan dialog OAuth oleh Meta untuk app yang belum review.
+      scope: ['email', 'public_profile'],
       profileFields: ['id', 'emails', 'name', 'displayName', 'photos'],
       graphAPIVersion: 'v24.0',
+      state: true,
+      failureRedirect: `${getAppBaseUrl(config)}/api/auth/oauth-failed`,
     });
   }
 
   async validate(accessToken: string, _rt: string, profile: Profile, done: any): Promise<any> {
-    const result = await this.auth.facebookValidate(profile, accessToken);
-    done(null, result);
+    try {
+      const result = await this.auth.facebookValidate(profile, accessToken);
+      done(null, result);
+    } catch (err) {
+      done(err instanceof Error ? err : new UnauthorizedException('Login Facebook gagal'), null);
+    }
   }
 }

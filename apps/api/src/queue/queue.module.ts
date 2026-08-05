@@ -9,6 +9,7 @@ import { SyncProcessor } from './processors/sync.processor';
 import { PlatformsModule } from '../platforms/platforms.module';
 import { EmailModule } from '../auth/email.module';
 import { SocialAccountsModule } from '../social-accounts/social-accounts.module';
+import { AIModule } from '../ai/ai.module';
 
 const connection = (config: ConfigService) => ({
   host: config.get<string>('REDIS_HOST', 'localhost'),
@@ -35,6 +36,7 @@ const connection = (config: ConfigService) => ({
     PlatformsModule,
     EmailModule,
     SocialAccountsModule,
+    AIModule,
   ],
   providers: [BulkProcessor, EmailProcessor, RepliesProcessor, PublishingProcessor, SyncProcessor],
   exports: [BulkProcessor],

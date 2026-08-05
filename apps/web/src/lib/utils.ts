@@ -1,4 +1,4 @@
-import { getActiveTimezone } from './timezone';
+import { getActiveTimezone, getServerNow } from './timezone';
 
 export function cn(...classes: (string | false | null | undefined)[]): string {
   return classes.filter(Boolean).join(' ');
@@ -31,7 +31,7 @@ export function formatDateTime(value?: string | Date): string {
 export function timeAgo(value?: string | Date): string {
   if (!value) return '-';
   const d = typeof value === 'string' ? new Date(value) : value;
-  const diff = Date.now() - d.getTime();
+  const diff = getServerNow().getTime() - d.getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'baru saja';
   if (mins < 60) return `${mins} mnt lalu`;

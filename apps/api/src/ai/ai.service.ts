@@ -100,6 +100,72 @@ export class AIService {
     const adapter = this.adapters[p];
     if (!adapter) throw new Error(`AI provider "${p}" tidak terdaftar`);
     this.logger.log(`AI call via ${p}`);
-    return adapter.complete(prompt, opts);
+    const result = await adapter.complete(prompt, opts);
+    return { ...result, content: cleanAiOutput(result.content, opts?.feature) };
   }
+
+  /** Strip AI noise (markdown fences, preamble, formatting) from generated text. */
+  static clean(content: string, feature?: string): string {
+    return cleanAiOutput(content, feature);
+  }
+}
+
+const PREAMBLE_PATTERNS = [
+  /^berikut\s+(adalah\s+)?caption[^\n]*[:.\n]/i,
+  /^tentu(,| saja)?\s*[!.]?\s*/i,
+  /^tentunya\s*[!.]?\s*/i,
+  /^oke?\s*[!.,]?\s*/i,
+  /^ba[ik]?\s*[!.,]?\s*/i,
+  /^siap\s*[!.,]?\s*/i,
+  /^caption[^\n]*[:.]?\s*\n?/i,
+  /^hasil[^\n]*[:.]\s*\n?/i,
+  /^berikut\s+beberapa[^\n]*[:.]\s*\n?/i,
+  /^inilah\s+caption[^\n]*[:.]\s*\n?/i,
+];
+
+const HASHTAG_HINTS = /(?:^|\n)(?:hashtag[s]?|tag[s]?)[:\s#]*/gi;
+
+/**
+ * Remove AI-specific boilerplate so generated content is ready to publish:
+ * markdown code fences, bullet numbering, preambles, and trailing chatter.
+ */
+export function cleanAiOutput(raw: string, _feature?: string): string {
+  if (!raw) return '';
+  let text = String(raw);
+
+  // Strip markdown code fences (``` ... ```) keeping the inner content.
+  text = text.replace(/```[\s\S]*?```/g, (m) => {
+    const inner = m.replace(/^```[^\n]*\n?/, '').replace(/\n?```$/, '');
+    return inner.trim();
+  });
+  text = text.replace(/`([^`]+)`/g, '$1');
+
+  // Remove common Indonesian/English preambles.
+  for (const re of PREAMBLE_PATTERNS) {
+    text = text.replace(re, '');
+  }
+
+  // Collapse bullet markers into plain text lines.
+  text = text.replace(/^[ \t]*[-*+•]\+[ \t]*/gm, '');
+  text = text.replace(/^[ \t]*[-*+•][ \t]*/gm, '');
+  text = text.replace(/^[ \t]*\d+[.)][ \t]*/gm, '');
+
+  // Turn "Hashtag: #a #b" hint lines into a clean hashtag line.
+  const match = text.match(HASHTAG_HINTS);
+  text = text.replace(HASHTAG_HINTS, '\n');
+  if (match) {
+    const tags = (text.match(/#[\w]+/g) || []).slice(0, 10);
+    if (tags.length) {
+      text = text.replace(/#[\w]+/g, '').trim();
+      text = `${text}\n\n${tags.join(' ')}`.trim();
+    }
+  }
+
+  // Trim trailing filler like "Semoga membantu!" / "Jangan lupa..."
+  text = text
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/[ \t]+$/gm, '')
+    .replace(/^(semoga membantu|good luck|goodluck|hope this helps)[.!]*\s*$/gim, '');
+
+  return text.trim();
 }

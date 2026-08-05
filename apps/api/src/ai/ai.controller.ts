@@ -56,7 +56,11 @@ export class AIController {
         throw new BadRequestException('Kuota AI bulanan sudah habis. Upgrade paket atau tunggu reset kuota.');
       }
 
-      const result = await this.ai.complete(body.prompt, {}, body.provider);
+      const result = await this.ai.complete(
+        body.prompt,
+        { feature: body.feature || 'content_writer' },
+        body.provider,
+      );
       return tx.aiUsage.create({
         data: {
           userId,

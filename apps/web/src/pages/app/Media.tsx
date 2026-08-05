@@ -15,6 +15,7 @@ import { useFetch } from '@/lib/useApi';
 import { api, mediaUrl } from '@/lib/api';
 import type { MediaFile } from '@/lib/types';
 import { cn, formatBytes, formatDate, formatDuration } from '@/lib/utils';
+import { extractVideoThumbnail } from '@/lib/video';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -45,8 +46,16 @@ function MediaPreview({ file, onUpdated }: { file: MediaFile; onUpdated: () => v
     e.stopPropagation();
     setRegenerating(true);
     try {
-      await api.post(`/media/${file.id}/thumbnail`);
-      toast.success('Thumbnail dibuat', 'Thumbnail video berhasil diperbarui.');
+      const blob = await extractVideoThumbnail(url);
+      if (!blob) {
+        await api.post(`/media/${file.id}/thumbnail`);
+        toast.success('Thumbnail dibuat', 'Thumbnail video berhasil diperbarui.');
+      } else {
+        const formData = new FormData();
+        formData.append('thumbnail', blob, 'thumb.jpg');
+        await api.upload(`/media/${file.id}/thumbnail-upload`, formData);
+        toast.success('Thumbnail dibuat', 'Thumbnail video berhasil diperbarui.');
+      }
       onUpdated();
     } catch (err) {
       toast.error('Gagal membuat thumbnail', err instanceof Error ? err.message : 'Terjadi kesalahan');
@@ -158,9 +167,27 @@ export function Media() {
     if (!list || list.length === 0) return;
     setUploading(true);
     try {
+      const files = Array.from(list);
       const formData = new FormData();
-      Array.from(list).forEach((f) => formData.append('files', f));
+      files.forEach((f) => formData.append('files', f));
       const res = await api.upload<MediaFile[]>('/media/upload', formData);
+      // Generate & attach thumbnails in the browser so video cards have one even
+      // when ffmpeg is unavailable on the server.
+      for (let i = 0; i < res.length; i++) {
+        const item = res[i];
+        if (item.fileType !== 'video') continue;
+        const file = files[i];
+        if (!file) continue;
+        try {
+          const thumb = await extractVideoThumbnail(file);
+          if (!thumb) continue;
+          const thumbData = new FormData();
+          thumbData.append('thumbnail', thumb, 'thumb.jpg');
+          await api.upload(`/media/${item.id}/thumbnail-upload`, thumbData);
+        } catch {
+          /* thumbnail is optional */
+        }
+      }
       toast.success('Upload berhasil', `${res.length} file ditambahkan ke library.`);
       refetch();
     } catch (err) {

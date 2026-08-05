@@ -94,7 +94,7 @@ export class InboxService {
       throw new BadRequestException('Quota AI bulanan habis. Upgrade paket atau isi ulang kuota.');
     }
 
-    const result = await this.ai.complete(prompt, { temperature: 0.6 });
+    const result = await this.ai.complete(prompt, { temperature: 0.6, feature: 'auto_reply' });
     await this.prisma.aiUsage.create({
       data: {
         userId,

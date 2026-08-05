@@ -4,6 +4,19 @@ import { Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PlatformsService } from '../../platforms/platforms.service';
 import { SocialAccountsService } from '../../social-accounts/social-accounts.service';
+import { AIService } from '../../ai/ai.service';
+import { BulkProcessor } from '../../queue/bulk.processor';
+import { NotificationsService } from '../../notifications/notifications.service';
+
+type AutoReplyRule = {
+  id: string;
+  accountId: string | null;
+  matchType: string;
+  matchText: string | null;
+  replyTemplate: string | null;
+  useAI: boolean;
+  aiPrompt: string | null;
+};
 
 @Processor('sync')
 export class SyncProcessor extends WorkerHost {
@@ -12,6 +25,9 @@ export class SyncProcessor extends WorkerHost {
     private readonly prisma: PrismaService,
     private readonly platforms: PlatformsService,
     private readonly social: SocialAccountsService,
+    private readonly ai: AIService,
+    private readonly bulk: BulkProcessor,
+    private readonly notifications: NotificationsService,
   ) {
     super();
   }
@@ -64,7 +80,7 @@ export class SyncProcessor extends WorkerHost {
             select: { id: true },
           });
           if (exists) continue;
-          await this.prisma.inboxItem.create({
+          const inbox = await this.prisma.inboxItem.create({
             data: {
               userId: acc.userId,
               accountId: acc.id,
@@ -77,6 +93,8 @@ export class SyncProcessor extends WorkerHost {
             },
           });
           pulled += 1;
+          await this.notifyInbox(acc, inbox);
+          await this.tryAutoReply(acc, inbox);
         }
         await this.prisma.socialAccount.update({
           where: { id: acc.id },
@@ -89,5 +107,113 @@ export class SyncProcessor extends WorkerHost {
     }
     this.logger.log(`Inbox sync done: pulled=${pulled} failed=${failed} accounts=${accounts.length}`);
     return { pulled, failed, accounts: accounts.length };
+  }
+
+  /** Push a bell notification whenever a new comment/DM/mention arrives. */
+  private async notifyInbox(
+    acc: { userId: string; accountName: string },
+    inbox: { id: string; kind: string; authorName: string | null; content: string | null },
+  ): Promise<void> {
+    try {
+      const kindLabel = inbox.kind === 'dm' ? 'DM' : inbox.kind === 'mention' ? 'Sebutan' : 'Komentar';
+      await this.notifications.create({
+        userId: acc.userId,
+        type: 'inbox',
+        title: `${kindLabel} baru dari ${inbox.authorName || 'pengguna'}`,
+        message: `${acc.accountName}: ${(inbox.content || '').slice(0, 120)}`,
+        link: '/app/inbox',
+        data: { inboxId: inbox.id, kind: inbox.kind, accountName: acc.accountName },
+      });
+    } catch (err) {
+      this.logger.warn(`failed to notify inbox item ${inbox.id}: ${(err as Error).message}`);
+    }
+  }
+
+  /** Evaluate auto-reply rules for a freshly pulled inbox item and enqueue a reply when matched. */
+  private async tryAutoReply(
+    acc: { userId: string },
+    inbox: {
+      id: string;
+      accountId: string;
+      kind: string;
+      authorName: string | null;
+      content: string | null;
+    },
+  ): Promise<void> {
+    try {
+      const rules = (await this.prisma.autoReplyRule.findMany({
+        where: { userId: acc.userId, enabled: true },
+        orderBy: { updatedAt: 'desc' },
+      })) as AutoReplyRule[];
+
+      const text = (inbox.content || '').toLowerCase();
+      const matched = rules.find((rule) => {
+        if (rule.accountId && rule.accountId !== inbox.accountId) return false;
+        if (rule.matchType === 'always') return true;
+        const needle = (rule.matchText || '').toLowerCase();
+        if (!needle) return rule.useAI;
+        if (rule.matchType === 'contains') return text.includes(needle);
+        if (rule.matchType === 'startsWith') return text.startsWith(needle);
+        if (rule.matchType === 'exact') return text === needle;
+        return false;
+      });
+      if (!matched) return;
+
+      const reply = await this.buildReply(acc.userId, inbox, matched);
+      if (!reply) return;
+
+      await this.prisma.inboxItem.update({
+        where: { id: inbox.id },
+        data: { status: 'queued' },
+      });
+      await this.bulk.enqueueReply({
+        inboxId: inbox.id,
+        accountId: inbox.accountId,
+        text: reply,
+      });
+      this.logger.log(`Auto-replied to inbox ${inbox.id} using rule ${matched.id}`);
+    } catch (err) {
+      this.logger.warn(`auto-reply failed for inbox ${inbox.id}: ${(err as Error).message}`);
+    }
+  }
+
+  private async buildReply(
+    userId: string,
+    inbox: { content: string | null; authorName: string | null },
+    rule: AutoReplyRule,
+  ): Promise<string | null> {
+    if (!rule.useAI) {
+      return (rule.replyTemplate || '').trim() || null;
+    }
+    const sub = await this.prisma.subscription.findFirst({
+      where: { userId, status: 'active' },
+      include: { plan: true },
+    });
+    const quota = sub?.plan?.aiPerMonth || 0;
+    const since = new Date();
+    since.setDate(since.getDate() - 30);
+    const used = await this.prisma.aiUsage.count({ where: { userId, createdAt: { gte: since } } });
+    if (used >= quota) {
+      this.logger.warn(`AI quota exhausted for user ${userId} — auto-reply skipped`);
+      return null;
+    }
+    const prompt =
+      (rule.aiPrompt || 'Balas dengan nada profesional dan ramah. Konten pesan:\n') +
+      `"${inbox.content || inbox.authorName || ''}"`;
+    const result = await this.ai.complete(prompt, { temperature: 0.6 });
+    const reply = (result.content || '').trim();
+    if (!reply) return null;
+    await this.prisma.aiUsage.create({
+      data: {
+        userId,
+        feature: 'auto_reply',
+        provider: this.ai.activeProvider,
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
+        prompt: prompt.slice(0, 2000),
+        result: result.content.slice(0, 5000),
+      },
+    });
+    return reply;
   }
 }

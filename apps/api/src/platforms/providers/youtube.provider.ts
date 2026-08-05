@@ -9,8 +9,21 @@ import {
   ReplyContext,
 } from '../platform.types';
 
-const API = 'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable';
+// The `part` query parameter is mandatory for the resumable upload initiation.
+// Without it the YouTube API rejects the request with HTTP 400 "Required parameter: part".
+const API = 'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status';
 const DATA = 'https://www.googleapis.com/youtube/v3';
+
+/** Extract a readable message from a YouTube API error response. */
+function extractApiError(err: any): string {
+  const detail = err?.response?.data?.error;
+  const reason = detail?.errors?.map((e: any) => e.reason).filter(Boolean).join(', ');
+  const message = detail?.message;
+  if (reason) return `YouTube: ${reason}`;
+  if (message) return `YouTube: ${message}`;
+  if (err?.response?.status) return `YouTube: permintaan ditolak (HTTP ${err.response.status})`;
+  return `YouTube: ${err?.message || 'gagal mengunggah video'}`;
+}
 
 /**
  * YouTube provider (Data API v3). Publish a video via resumable upload.
@@ -35,36 +48,50 @@ export class YoutubeProvider implements PlatformAdapter {
       status: { privacyStatus: 'private', selfDeclaredMadeForKids: false },
     };
 
-    const { data: location } = await axios.post(API, meta, {
-      headers: { Authorization: `Bearer ${account.accessToken}`, 'Content-Type': 'application/json' },
-    });
-    const uploadUrl = location.location;
+    try {
+      const { data: location } = await axios.post(API, meta, {
+        headers: {
+          Authorization: `Bearer ${account.accessToken}`,
+          'Content-Type': 'application/json',
+          'X-Upload-Content-Type': video.mimeType || 'video/mp4',
+        },
+      });
+      const uploadUrl = location.location;
 
-    const fileUrl = `${post.mediaBaseUrl}/${video.filename}`;
-    const fileRes = await axios.get(fileUrl, { responseType: 'stream' });
-    // Proxy the stream through the resumable upload endpoint.
-    const { data: uploaded } = await axios.request({
-      method: 'PUT',
-      url: uploadUrl,
-      data: fileRes.data,
-      headers: { 'Content-Type': video.mimeType || 'video/mp4' },
-    });
-    this.logger.log(`YouTube upload initiated: ${uploaded.id}`);
-    return { ok: true, remoteId: uploaded.id };
+      const fileUrl = `${post.mediaBaseUrl}/${video.filename}`;
+      const fileRes = await axios.get(fileUrl, { responseType: 'stream' });
+      // Proxy the stream through the resumable upload endpoint.
+      const { data: uploaded } = await axios.request({
+        method: 'PUT',
+        url: uploadUrl,
+        data: fileRes.data,
+        headers: { 'Content-Type': video.mimeType || 'video/mp4' },
+      });
+      this.logger.log(`YouTube upload initiated: ${uploaded.id}`);
+      return { ok: true, remoteId: uploaded.id };
+    } catch (err) {
+      throw new Error(extractApiError(err));
+    }
   }
 
   async reply(account: SocialAccount, ctx: ReplyContext): Promise<PlatformResult> {
     if (!account.accessToken) return { ok: false };
     const target = ctx.targetId;
     if (!target) return { ok: false };
-    const { data } = await axios.post(
-      `${DATA}/comments?part=snippet`,
-      {
-        snippet: { parentId: target, textOriginal: ctx.text },
-      },
-      { headers: { Authorization: `Bearer ${account.accessToken}`, 'Content-Type': 'application/json' } },
-    );
-    return { ok: true, remoteId: data?.id };
+    const text = (ctx.text || '').slice(0, 1000).trim();
+    if (!text) return { ok: false };
+    try {
+      const { data } = await axios.post(
+        `${DATA}/comments?part=snippet`,
+        {
+          snippet: { parentId: target, textOriginal: text },
+        },
+        { headers: { Authorization: `Bearer ${account.accessToken}`, 'Content-Type': 'application/json' } },
+      );
+      return { ok: true, remoteId: data?.id };
+    } catch (err) {
+      throw new Error(extractApiError(err));
+    }
   }
 
   /** Pull comments from the channel's videos. Needs youtube.readonly (+ force-ssl to reply). */

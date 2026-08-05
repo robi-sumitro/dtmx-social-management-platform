@@ -5,6 +5,7 @@ import { useFetch } from '@/lib/useApi';
 import { api } from '@/lib/api';
 import type { Post } from '@/lib/types';
 import { cn, formatDate, formatDateTime, postStatusMeta, postTitle } from '@/lib/utils';
+import { getActiveTimezone } from '@/lib/timezone';
 import { PageHeader, PlatformIcon, ErrorPanel } from '@/components/shared/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Tabs } from '@/components/ui/Tabs';
@@ -181,7 +182,13 @@ export function Posts() {
             {Array.from({ length: daysInMonth }).map((_, i) => {
               const day = i + 1;
               const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-              const dayPosts = posts.filter((p) => p.scheduledAt && p.scheduledAt.startsWith(dateStr));
+              const dayPosts = posts.filter((p) => {
+                if (!p.scheduledAt) return false;
+                const localDate = new Date(p.scheduledAt).toLocaleDateString('en-CA', {
+                  timeZone: getActiveTimezone(),
+                });
+                return localDate === dateStr;
+              });
               return (
                 <div key={`day-${day}`} className="h-28 overflow-y-auto rounded-lg border border-slate-100 bg-white p-2 text-left">
                   <span className="text-xs font-semibold text-slate-700">{day}</span>

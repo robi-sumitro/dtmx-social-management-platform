@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Bell, Check, CheckCheck, X, Sparkles, RefreshCw, Receipt, Send, Info } from 'lucide-react';
+import { Bell, Check, CheckCheck, X, Sparkles, RefreshCw, Receipt, Send, MessageSquare, Info } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Notification } from '@/lib/types';
 import { timeAgo } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 
 const TYPE_ICON: Record<string, { icon: React.ReactNode; className: string }> = {
+  inbox: { icon: <MessageSquare className="h-4 w-4" />, className: 'bg-violet-50 text-violet-600' },
   payment: { icon: <Receipt className="h-4 w-4" />, className: 'bg-amber-50 text-amber-600' },
   subscription: { icon: <Sparkles className="h-4 w-4" />, className: 'bg-brand-50 text-brand-600' },
   post: { icon: <Send className="h-4 w-4" />, className: 'bg-blue-50 text-blue-600' },

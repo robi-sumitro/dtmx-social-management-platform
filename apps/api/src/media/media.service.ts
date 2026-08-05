@@ -10,6 +10,7 @@ import { join } from 'path';
 import { randomUUID } from 'crypto';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
+import { getAppBaseUrl } from '../common/app-url';
 
 const execFileAsync = promisify(execFile);
 
@@ -24,7 +25,7 @@ export class FileStorageService {
   }
 
   getUrl(filename: string): string {
-    const base = this.config.get<string>('APP_URL', 'http://localhost:3000');
+    const base = getAppBaseUrl(this.config);
     return `${base}/uploads/${encodeURIComponent(filename)}`;
   }
 

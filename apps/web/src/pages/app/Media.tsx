@@ -34,7 +34,9 @@ function MediaPreview({ file, onUpdated }: { file: MediaFile; onUpdated: () => v
 
   const copyUrl = async () => {
     try {
-      await navigator.clipboard.writeText(url);
+      // Make sure the copied link is an absolute URL (API_BASE may be relative).
+      const full = new URL(url, window.location.origin).href;
+      await navigator.clipboard.writeText(full);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {

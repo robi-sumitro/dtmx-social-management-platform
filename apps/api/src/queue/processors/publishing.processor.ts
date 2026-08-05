@@ -7,6 +7,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { PlatformsService } from '../../platforms/platforms.service';
 import { PublishContext } from '../../platforms/platform.types';
 import { NotificationsService } from '../../notifications/notifications.service';
+import { getAppBaseUrl } from '../../common/app-url';
 
 type PostWithMedia = Post & {
   media: { media: { filename: string; fileType: string; mimeType: string | null } }[];
@@ -43,7 +44,10 @@ export class PublishingProcessor extends WorkerHost {
       include: { account: true },
     });
 
-    const mediaBaseUrl = this.config.get<string>('APP_URL', 'http://localhost:3000') + '/uploads';
+    // Public, Google/TikTok-reachable URL to the media files. Must be an absolute
+    // URL derived from the same base as the OAuth callbacks (API_URL /
+    // RAILWAY_PUBLIC_DOMAIN), otherwise the platform's downloader cannot fetch it.
+    const mediaBaseUrl = `${getAppBaseUrl(this.config)}/uploads`;
     const ctx: PublishContext = {
       caption: post.caption,
       hashtags: post.hashtags,

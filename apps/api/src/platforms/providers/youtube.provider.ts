@@ -125,8 +125,11 @@ export class YoutubeProvider implements PlatformAdapter {
     // `replies` part, so the only way to get replies is comments.list. Pulling
     // that for every thread on every 5-min sync blows through the YouTube daily
     // API quota (10k units) and makes pullInbox fail wholesale — comments stop
-    // landing in the inbox. So only drill into the reply tree for comment
-    // threads that are genuinely new, and cap the calls as a safety net.
+    // landing in the inbox. So drill into the reply tree only when the inline
+    // subset is incomplete (totalReplies > inlineCount) and cap the calls as a
+    // safety net. The fetchReplies guard stops early once a page is made up
+    // entirely of replies already in the inbox, so unchanged threads cost at
+    // most one comments.list call instead of the whole tree.
     const existing = new Set(existingIds ?? []);
     let replyCalls = 0;
     const MAX_REPLY_CALLS = 50;
@@ -141,6 +144,7 @@ export class YoutubeProvider implements PlatformAdapter {
         authorName: c.snippet?.authorDisplayName,
         content: c.snippet?.textDisplay || '',
         publishedAt: c.snippet?.publishedAt || undefined,
+        parentId: c.snippet?.parentId || undefined,
       });
     };
 
@@ -161,7 +165,11 @@ export class YoutubeProvider implements PlatformAdapter {
           },
           headers: { Authorization: `Bearer ${account.accessToken}` },
         });
-        for (const c of data?.items ?? []) {
+        const rows: any[] = data?.items ?? [];
+        // Nothing new in this page means nothing new deeper in the thread —
+        // stop paginating to save quota on unchanged threads.
+        if (rows.length && rows.every((c: any) => c?.id && existing.has(c.id))) return;
+        for (const c of rows) {
           pushComment(c);
           if ((c.snippet?.totalReplyCount ?? 0) > 0) await fetchReplies(c.id);
         }
@@ -195,7 +203,7 @@ export class YoutubeProvider implements PlatformAdapter {
           pushComment(reply);
           if ((reply.snippet?.totalReplyCount ?? 0) > 0) await fetchReplies(reply.id);
         }
-        if (top?.id && !existing.has(top.id) && totalReplies > inlineCount) await fetchReplies(top.id);
+        if (top?.id && totalReplies > inlineCount) await fetchReplies(top.id);
       }
       pageToken = data?.nextPageToken;
     } while (pageToken && items.length < 500);

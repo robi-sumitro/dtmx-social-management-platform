@@ -102,6 +102,7 @@ export class SyncProcessor extends WorkerHost {
               authorId: item.authorId,
               content: item.content,
               mediaUrl: item.mediaUrl,
+              parentId: item.parentId || undefined,
               // Use the real comment timestamp so "terbaru" ordering reflects
               // the platform's time, not the moment the sync pulled it.
               createdAt: item.publishedAt ? new Date(item.publishedAt) : undefined,

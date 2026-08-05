@@ -148,6 +148,7 @@ export interface InboxItem {
   authorId?: string;
   content?: string;
   mediaUrl?: string;
+  parentId?: string;
   status: 'new' | 'replied' | 'ignored' | 'queued';
   repliedAt?: string;
   replyContent?: string;

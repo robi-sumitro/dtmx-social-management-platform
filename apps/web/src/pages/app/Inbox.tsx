@@ -29,6 +29,56 @@ const KIND_META: Record<string, { label: string; icon: string }> = {
   mention: { label: 'Sebutan', icon: '📣' },
 };
 
+interface ThreadGroup {
+  item: InboxItem;
+  replies: InboxItem[];
+}
+
+/** Kelompokkan item jadi thread: komentar induk + balasan (parentId = sourceId induk). */
+function buildThreads(items: InboxItem[]): ThreadGroup[] {
+  const bySource = new Map<string, InboxItem>();
+  for (const i of items) if (i.sourceId) bySource.set(i.sourceId, i);
+  const threads: ThreadGroup[] = [];
+  const repliesOf = new Map<string, InboxItem[]>();
+  for (const i of items) {
+    if (i.parentId && bySource.has(i.parentId)) {
+      const arr = repliesOf.get(i.parentId) ?? [];
+      arr.push(i);
+      repliesOf.set(i.parentId, arr);
+    } else {
+      threads.push({ item: i, replies: [] });
+    }
+  }
+  for (const t of threads) {
+    t.replies = (repliesOf.get(t.item.sourceId ?? '') ?? []).sort((a, b) =>
+      a.createdAt.localeCompare(b.createdAt),
+    );
+  }
+  threads.sort((a, b) => b.item.createdAt.localeCompare(a.item.createdAt));
+  return threads;
+}
+
+/** Ambil seluruh thread (induk + semua balasan) dari item yang dipilih. */
+function threadFor(items: InboxItem[], selected: InboxItem): InboxItem[] {
+  const bySource = new Map<string, InboxItem>();
+  for (const i of items) if (i.sourceId) bySource.set(i.sourceId, i);
+  let root = selected;
+  const seen = new Set<string>();
+  let node: InboxItem | undefined = selected;
+  while (node?.parentId) {
+    if (seen.has(node.id)) break;
+    seen.add(node.id);
+    const parent = bySource.get(node.parentId);
+    if (!parent) break;
+    root = parent;
+    node = parent;
+  }
+  const replies = items
+    .filter((i) => i.parentId && i.parentId === root.sourceId)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  return [root, ...replies];
+}
+
 export function Inbox() {
   const toast = useToast();
   const { user } = useAuth();
@@ -116,13 +166,16 @@ export function Inbox() {
       : status === 'new'
         ? allItems.filter((i) => i.status !== 'ignored')
         : allItems.filter((i) => i.status === status);
+  // Tampilkan sebagai thread: komentar induk dengan balasannya tepat di bawah.
+  const threads = buildThreads(filtered);
   const counts = query.data?.counts ?? {};
   const countOf = (s: string) => {
     if (s === 'all') return query.data?.total ?? allItems.length;
     if (s === 'new') return (query.data?.total ?? allItems.length) - (counts.ignored ?? 0);
     return counts[s] ?? allItems.filter((i) => i.status === s).length;
   };
-  const selectedDetail = selected ?? filtered[0] ?? null;
+  const selectedDetail = selected ?? threads[0]?.item ?? null;
+  const detailThread = selectedDetail ? threadFor(allItems, selectedDetail) : [];
 
   return (
     <div className="animate-fade-in">
@@ -180,40 +233,60 @@ export function Inbox() {
             />
           ) : (
             <div className="max-h-[70vh] divide-y divide-slate-50 overflow-y-auto">
-              {filtered.map((item) => {
-                const meta = inboxStatusMeta(item.status);
-                const kind = KIND_META[item.kind];
-                const active = selectedDetail?.id === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setSelected(item)}
-                    className={cn('w-full px-4 py-3.5 text-left transition', active ? 'bg-brand-50/70' : 'hover:bg-slate-50')}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-base">
-                          {item.authorName?.[0]?.toUpperCase() ?? '?'}
-                        </span>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-slate-800">{item.authorName || 'Pengguna'}</p>
-                          <p className="truncate text-xs text-slate-400">{item.content}</p>
+              {threads.map((t) => {
+                const row = (item: InboxItem, indent = false) => {
+                  const meta = inboxStatusMeta(item.status);
+                  const kind = KIND_META[item.kind];
+                  const active = selectedDetail?.id === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => setSelected(item)}
+                      className={cn(
+                        'w-full px-4 py-3.5 text-left transition',
+                        indent && 'border-l-2 border-brand-100 pl-10',
+                        active ? 'bg-brand-50/70' : 'hover:bg-slate-50',
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-2.5">
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-base">
+                            {item.authorName?.[0]?.toUpperCase() ?? '?'}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-800">
+                              {indent && <span className="mr-1 text-brand-400">↳</span>}
+                              {item.authorName || 'Pengguna'}
+                            </p>
+                            <p className="truncate text-xs text-slate-400">{item.content}</p>
+                          </div>
                         </div>
+                        <span className="shrink-0 text-[10px] text-slate-400">{timeAgo(item.createdAt)}</span>
                       </div>
-                      <span className="shrink-0 text-[10px] text-slate-400">{timeAgo(item.createdAt)}</span>
-                    </div>
-                    <div className="mt-2 flex items-center gap-2">
-                      <Badge className={meta.className}>{meta.label}</Badge>
-                      <span className="text-xs text-slate-400">{kind?.icon} {kind?.label}</span>
-                      {item.account && <PlatformIcon provider={item.account.provider} size="h-3.5 w-3.5" />}
-                    </div>
-                    {item.replyContent && (
-                      <p className="mt-1.5 flex items-center gap-1 truncate text-[11px] text-brand-600">
-                        <Bot className="h-3 w-3 shrink-0" />
-                        <span className="truncate">Balasan: {item.replyContent}</span>
-                      </p>
+                      <div className="mt-2 flex items-center gap-2">
+                        <Badge className={meta.className}>{meta.label}</Badge>
+                        <span className="text-xs text-slate-400">{kind?.icon} {kind?.label}</span>
+                        {item.account && <PlatformIcon provider={item.account.provider} size="h-3.5 w-3.5" />}
+                      </div>
+                      {item.replyContent && (
+                        <p className="mt-1.5 flex items-center gap-1 truncate text-[11px] text-brand-600">
+                          <Bot className="h-3 w-3 shrink-0" />
+                          <span className="truncate">Balasan: {item.replyContent}</span>
+                        </p>
+                      )}
+                    </button>
+                  );
+                };
+                return (
+                  <div key={t.item.id}>
+                    {row(t.item)}
+                    {t.replies.length > 0 && (
+                      <div className="relative">
+                        <span className="absolute bottom-0 left-4 top-0 w-px bg-slate-200" />
+                        {t.replies.map((r) => row(r, true))}
+                      </div>
                     )}
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -248,22 +321,35 @@ export function Inbox() {
                 </div>
               </div>
 
-              <div className="flex-1 space-y-4 px-6 py-5">
-                <div className="max-w-lg rounded-2xl rounded-tl-md bg-slate-100 px-4 py-3">
-                  <p className="text-sm leading-relaxed text-slate-800">{selectedDetail.content || '—'}</p>
-                  {selectedDetail.mediaUrl && <img src={selectedDetail.mediaUrl} alt="" className="mt-3 max-h-64 rounded-xl" />}
-                </div>
-
-                {selectedDetail.replyContent && (
-                  <div className="max-w-lg self-end rounded-2xl rounded-tr-md bg-brand-gradient px-4 py-3 text-white">
-                    <p className="text-sm leading-relaxed">{selectedDetail.replyContent}</p>
-                    {selectedDetail.repliedAt && (
-                      <p className="mt-1 text-[10px] text-white/70">
-                        Dibalas {formatDateTime(selectedDetail.repliedAt)}
-                      </p>
-                    )}
-                  </div>
-                )}
+              <div className="flex-1 space-y-3 overflow-y-auto px-6 py-5">
+                {detailThread.map((node) => {
+                  const indent = Boolean(node.parentId);
+                  return (
+                    <div key={node.id} className="flex flex-col gap-2">
+                      <div className={cn('max-w-lg rounded-2xl rounded-tl-md bg-slate-100 px-4 py-3', indent && 'ml-8')}>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-xs font-semibold text-slate-600">
+                            {indent && <span className="mr-1 text-brand-400">↳</span>}
+                            {node.authorName || 'Pengguna'}
+                          </span>
+                          <span className="text-[10px] text-slate-400">{formatDateTime(node.createdAt)}</span>
+                        </div>
+                        <p className="mt-1 text-sm leading-relaxed text-slate-800">{node.content || '—'}</p>
+                        {node.mediaUrl && <img src={node.mediaUrl} alt="" className="mt-3 max-h-64 rounded-xl" />}
+                      </div>
+                      {node.replyContent && (
+                        <div className={cn('max-w-lg self-end rounded-2xl rounded-tr-md bg-brand-gradient px-4 py-3 text-white', indent && 'ml-8')}>
+                          <p className="text-sm leading-relaxed">{node.replyContent}</p>
+                          {node.repliedAt && (
+                            <p className="mt-1 text-[10px] text-white/70">
+                              Dibalas {formatDateTime(node.repliedAt)}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
 
                 <div className="flex flex-wrap gap-2 pt-1">
                   {selectedDetail.status !== 'ignored' && (

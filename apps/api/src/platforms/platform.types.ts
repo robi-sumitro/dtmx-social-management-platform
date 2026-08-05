@@ -38,6 +38,8 @@ export interface InboxPullItem {
   authorId?: string;
   content?: string;
   mediaUrl?: string;
+  /** Source id of the parent comment (for reply/thread nesting). */
+  parentId?: string;
   /** When the comment/DM was actually created on the platform (ISO string). */
   publishedAt?: string;
 }

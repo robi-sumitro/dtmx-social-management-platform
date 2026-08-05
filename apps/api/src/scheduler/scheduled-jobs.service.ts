@@ -5,6 +5,8 @@ import { FeatureFlagService } from '../features/feature-flag.service';
 import { BulkProcessor } from '../queue/bulk.processor';
 import { RedisLockService } from './redis-lock.service';
 
+const INBOX_SYNC_MINUTES = Math.max(1, Number(process.env.INBOX_SYNC_MINUTES || 5));
+
 @Injectable()
 export class ScheduledJobsService implements OnModuleInit {
   private readonly logger = new Logger(ScheduledJobsService.name);
@@ -88,8 +90,8 @@ export class ScheduledJobsService implements OnModuleInit {
     }
   }
 
-  // Pull new comments/DMs from connected META accounts every 5 minutes.
-  @Cron(CronExpression.EVERY_5_MINUTES)
+  // Pull new comments/DMs from connected accounts. Default 5 menit, bisa dipercepat via INBOX_SYNC_MINUTES (mis. 1 = tiap menit).
+  @Cron(`*/${INBOX_SYNC_MINUTES} * * * *`)
   async syncInbox() {
     if (!(await this.locks.acquire('sync-inbox', 4 * 60 * 1000))) return;
     try {

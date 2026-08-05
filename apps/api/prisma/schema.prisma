@@ -252,6 +252,7 @@ model InboxItem {
   authorId    String?
   content     String?
   mediaUrl    String?
+  parentId    String?  // provider parent comment id (untuk thread/balasan)
   status        String   @default("new") // new|replied|ignored|queued
   repliedAt     DateTime?
   replyContent  String?

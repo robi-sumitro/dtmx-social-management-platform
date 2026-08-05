@@ -46,7 +46,9 @@ export class RepliesProcessor extends WorkerHost {
       data: {
         status: sent ? 'replied' : 'queued',
         repliedAt: sent ? new Date() : undefined,
-        replyContent: sent ? text : undefined,
+        // Keep the (attempted) reply text visible even when the platform
+        // rejects it — clearing it made AI replies disappear from the inbox.
+        replyContent: text,
       },
     });
     return { ok: sent, text };

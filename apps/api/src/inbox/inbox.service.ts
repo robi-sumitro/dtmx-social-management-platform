@@ -246,6 +246,15 @@ export class InboxService {
     }
 
     await this.prisma.inboxItem.delete({ where: { id: inboxId } });
+
+    if (item.sourceId) {
+      await this.prisma.removedInboxSource.upsert({
+        where: { accountId_sourceId: { accountId: item.accountId, sourceId: item.sourceId } },
+        update: { removedAt: new Date() },
+        create: { userId, accountId: item.accountId, sourceId: item.sourceId },
+      });
+    }
+
     return { ok: true, warning };
   }
 }

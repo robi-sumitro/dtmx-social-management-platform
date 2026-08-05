@@ -40,6 +40,7 @@ model User {
   autoReplies      AutoReplyRule[]
   notifications    Notification[]
   apiUsages        ApiUsage[]
+  removedInboxSources RemovedInboxSource[]
 
   @@map("users")
 }
@@ -142,6 +143,7 @@ model SocialAccount {
   posts       PostAccount[]
   publications PostPublication[]
   inboxItems  InboxItem[]
+  removedInboxSources RemovedInboxSource[]
 
   @@index([userId])
   @@index([provider])
@@ -266,6 +268,21 @@ model InboxItem {
   @@index([status])
   @@index([accountId])
   @@map("inbox_items")
+}
+
+model RemovedInboxSource {
+  id        String   @id @default(cuid())
+  userId    String
+  accountId String
+  sourceId  String
+  removedAt DateTime @default(now())
+
+  user    User          @relation(fields: [userId], references: [id])
+  account SocialAccount @relation(fields: [accountId], references: [id])
+
+  @@unique([accountId, sourceId])
+  @@index([userId, removedAt])
+  @@map("inbox_removed_sources")
 }
 
 model AutoReplyRule {

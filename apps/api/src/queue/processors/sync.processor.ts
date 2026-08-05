@@ -82,9 +82,17 @@ export class SyncProcessor extends WorkerHost {
           select: { sourceId: true },
         });
         const existingIds = existingRows.map((r) => r.sourceId).filter(Boolean) as string[];
+        const removedRows = await this.prisma.removedInboxSource.findMany({
+          where: { userId: acc.userId, accountId: acc.id },
+          select: { sourceId: true },
+        });
+        const removedIds = new Set(removedRows.map((r) => r.sourceId));
         const items = await this.platforms.pullInbox(accountRef, undefined, existingIds);
         for (const item of items) {
           if (!item.sourceId) continue;
+          // Skip comments that were explicitly deleted from the inbox so they
+          // don't get pulled back in by the next sync.
+          if (removedIds.has(item.sourceId)) continue;
           // Skip our own comments/replies (author == the channel/page itself).
           // Otherwise the bot would auto-reply to its own replies endlessly.
           const ownIds = [accountRef.platformId, accountRef.instagramId].filter(Boolean);

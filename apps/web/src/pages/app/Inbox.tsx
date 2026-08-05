@@ -38,9 +38,12 @@ export function Inbox() {
   const [sending, setSending] = useState(false);
   const [autoReplying, setAutoReplying] = useState(false);
 
+  // Fetch the full list (no status filter) so tab counts stay consistent and the
+  // open tab never masks the others. Polls every 30s to keep badges in sync.
   const query = useFetch<InboxListResponse>(
-    () => api.get(`/inbox?status=${status === 'all' ? '' : status}&accountId=${accountId === 'all' ? '' : accountId}&limit=100`),
-    [status, accountId],
+    () => api.get(`/inbox?accountId=${accountId === 'all' ? '' : accountId}&limit=500`),
+    [accountId],
+    30000,
   );
   const accounts = useFetch<SocialAccount[]>(() => api.get('/social-accounts'));
 
@@ -91,8 +94,10 @@ export function Inbox() {
     }
   };
 
-  const items = query.data?.items ?? [];
-  const filtered = status === 'new' ? items.filter((i) => i.status === 'new') : items;
+  const allItems = query.data?.items ?? [];
+  const filtered = status === 'all' ? allItems : allItems.filter((i) => i.status === status);
+  const counts = query.data?.counts ?? {};
+  const countOf = (s: string) => (s === 'all' ? (query.data?.total ?? allItems.length) : counts[s] ?? allItems.filter((i) => i.status === s).length);
   const selectedDetail = selected ?? filtered[0] ?? null;
 
   return (
@@ -112,10 +117,10 @@ export function Inbox() {
           <div className="border-b border-slate-100 p-4">
             <div className="flex items-center gap-2 overflow-x-auto pb-2">
               {[
-                { value: 'new' as const, label: 'Baru', count: items.filter((i) => i.status === 'new').length },
-                { value: 'all' as const, label: 'Semua', count: items.length },
-                { value: 'replied' as const, label: 'Dibalas', count: items.filter((i) => i.status === 'replied').length },
-                { value: 'ignored' as const, label: 'Diabaikan', count: items.filter((i) => i.status === 'ignored').length },
+                { value: 'new' as const, label: 'Baru', count: countOf('new') },
+                { value: 'all' as const, label: 'Semua', count: countOf('all') },
+                { value: 'replied' as const, label: 'Dibalas', count: countOf('replied') },
+                { value: 'ignored' as const, label: 'Diabaikan', count: countOf('ignored') },
               ].map((t) => (
                 <button
                   key={t.value}

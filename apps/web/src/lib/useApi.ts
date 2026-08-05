@@ -7,7 +7,11 @@ interface UseFetchResult<T> {
   refetch: () => void;
 }
 
-export function useFetch<T>(fetcher: () => Promise<T>, deps: unknown[] = []): UseFetchResult<T> {
+export function useFetch<T>(
+  fetcher: () => Promise<T>,
+  deps: unknown[] = [],
+  intervalMs?: number,
+): UseFetchResult<T> {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,6 +38,15 @@ export function useFetch<T>(fetcher: () => Promise<T>, deps: unknown[] = []): Us
       .finally(() => {
         if (mounted.current) setLoading(false);
       });
+    if (intervalMs && intervalMs > 0) {
+      const timer = window.setInterval(() => {
+        if (mounted.current) setTick((t) => t + 1);
+      }, intervalMs);
+      return () => {
+        mounted.current = false;
+        window.clearInterval(timer);
+      };
+    }
     return () => {
       mounted.current = false;
     };

@@ -211,6 +211,7 @@ export interface InboxListResponse {
   total: number;
   page: number;
   limit: number;
+  counts?: Record<string, number>;
 }
 
 export interface AccountInsights {

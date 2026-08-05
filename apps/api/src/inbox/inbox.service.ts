@@ -22,7 +22,12 @@ export class InboxService {
     if (filters.status) where.status = filters.status;
     if (filters.accountId) where.accountId = filters.accountId;
 
-    const [items, total] = await Promise.all([
+    // Counts are computed without the status filter so tab badges stay in sync
+    // regardless of which tab is currently open.
+    const baseWhere: any = { userId };
+    if (filters.accountId) baseWhere.accountId = filters.accountId;
+
+    const [items, total, statusGroups] = await Promise.all([
       this.prisma.inboxItem.findMany({
         where,
         include: { account: true },
@@ -31,8 +36,17 @@ export class InboxService {
         take: limit,
       }),
       this.prisma.inboxItem.count({ where }),
+      this.prisma.inboxItem.groupBy({
+        by: ['status'],
+        where: baseWhere,
+        _count: { _all: true },
+      }),
     ]);
-    return { items, total, page, limit };
+    const counts: Record<string, number> = { all: total, new: 0, replied: 0, ignored: 0, queued: 0 };
+    for (const g of statusGroups) {
+      if (g.status in counts) counts[g.status] = g._count._all;
+    }
+    return { items, total, page, limit, counts };
   }
 
   async reply(userId: string, inboxId: string, text: string, useAI?: boolean) {

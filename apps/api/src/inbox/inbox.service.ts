@@ -221,8 +221,8 @@ export class InboxService {
 
   /**
    * Hapus komentar: dari platform (channel) langsung + dari database.
-   * Jika penghapusan dari platform gagal/ditolak, item tetap dihapus dari
-   * database dan alasan kegagalan dikembalikan sebagai peringatan.
+   * Jika penghapusan dari platform gagal, item tetap dipertahankan di inbox
+   * dan error diteruskan ke pengguna.
    */
   async remove(userId: string, inboxId: string) {
     const item = await this.prisma.inboxItem.findFirst({
@@ -231,30 +231,14 @@ export class InboxService {
     });
     if (!item) throw new NotFoundException('Inbox item tidak ditemukan');
 
-    let warning: string | undefined;
     if (item.sourceId && item.account) {
       const provider = item.account.provider;
       if (this.platforms.supportsDelete(provider)) {
-        try {
-          await this.platforms.deleteComment(item.account, item.sourceId);
-        } catch (err) {
-          warning = `Komentar dihapus dari inbox, tetapi gagal dihapus dari ${provider}: ${(err as Error).message}`;
-        }
-      } else {
-        warning = `Penghapusan dari ${provider} tidak didukung via API; hanya dihapus dari database.`;
+        await this.platforms.deleteComment(item.account, item.sourceId);
       }
     }
 
     await this.prisma.inboxItem.delete({ where: { id: inboxId } });
-
-    if (item.sourceId) {
-      await this.prisma.removedInboxSource.upsert({
-        where: { accountId_sourceId: { accountId: item.accountId, sourceId: item.sourceId } },
-        update: { removedAt: new Date() },
-        create: { userId, accountId: item.accountId, sourceId: item.sourceId },
-      });
-    }
-
-    return { ok: true, warning };
+    return { ok: true };
   }
 }

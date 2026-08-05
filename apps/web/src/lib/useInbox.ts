@@ -78,7 +78,7 @@ export function useInbox(accountId: string): InboxState {
   const loadCounts = useCallback(async () => {
     try {
       const data = await api.get<{ total: number; counts: Record<string, number> }>(
-        `/inbox/counts${qs({ accountId })}`,
+        `/inbox/counts${qs({ accountId: accountId === 'all' ? undefined : accountId })}`,
       );
       setCounts((prev) => ({ ...prev, ...data.counts, all: data.total }));
       setTotal(data.total);
@@ -86,6 +86,9 @@ export function useInbox(accountId: string): InboxState {
       // badge polling tidak kritis; biarkan nilai lama
     }
   }, [accountId]);
+
+  // Nilai sentinel 'all' tidak boleh ikut terkirim ke API.
+  const accParam = accountId === 'all' ? undefined : accountId;
 
   /* Muat ulang penuh (awal mount, ganti akun, atau aksi manual). */
   useEffect(() => {
@@ -97,7 +100,7 @@ export function useInbox(accountId: string): InboxState {
     (async () => {
       try {
         const data = await api.get<{ items: InboxItem[]; total: number; counts: Record<string, number> }>(
-          `/inbox${qs({ accountId, limit: 500 })}`,
+          `/inbox${qs({ accountId: accParam, limit: 500 })}`,
         );
         if (disposed || sessionRef.current !== session) return;
         let max = lastSeenRef.current;
@@ -135,7 +138,7 @@ export function useInbox(accountId: string): InboxState {
       if (!since) return;
       try {
         const data = await api.get<{ items: InboxItem[] }>(
-          `/inbox${qs({ accountId, since, limit: 100 })}`,
+          `/inbox${qs({ accountId: accParam, since, limit: 100 })}`,
         );
         if (!data.items.length) return;
         setItems((prev) => mergeItems(prev, data.items));

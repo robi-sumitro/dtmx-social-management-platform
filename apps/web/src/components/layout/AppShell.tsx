@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
+import { api } from '@/lib/api';
 import { LogoLight } from '@/components/ui/Logo';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -47,10 +48,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
+  const [inboxBadge, setInboxBadge] = useState<number>(0);
   const menuRef = useRef<HTMLDivElement>(null);
   const headerMenuRef = useRef<HTMLDivElement>(null);
 
   const isSettings = location.pathname === '/app/settings';
+
+  // Badge Inbox di sidebar: jumlah yang belum diabaikan (sama dengan tab "Baru").
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await api.get<{ total: number; counts: Record<string, number> }>('/inbox/counts');
+        setInboxBadge(Math.max(0, (data.total ?? 0) - (data.counts?.ignored ?? 0)));
+      } catch {
+        // biarkan badge tetap seperti sebelumnya
+      }
+    };
+    void load();
+    const timer = setInterval(() => void load(), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
@@ -110,6 +127,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {item.badge && (
               <span className="rounded-md bg-amber-400/90 px-1.5 py-0.5 text-[10px] font-bold text-slate-900">
                 {item.badge}
+              </span>
+            )}
+            {item.to === '/app/inbox' && inboxBadge > 0 && (
+              <span className="rounded-md bg-amber-400/90 px-1.5 py-0.5 text-[10px] font-bold text-slate-900">
+                {inboxBadge > 99 ? '99+' : inboxBadge}
               </span>
             )}
           </NavLink>

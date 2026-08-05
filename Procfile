@@ -1,1 +1,1 @@
-web: node dist/apps/api/prisma/heal-migrations.js && pnpm --filter @dtmx/api start:prod
+web: pnpm --filter @dtmx/api prisma:deploy:heal:prod && pnpm --filter @dtmx/api start:prod

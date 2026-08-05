@@ -2,6 +2,6 @@
   "$schema": "https://schema.railpack.com",
   "deploy": {
     "buildCommand": "pnpm --filter @dtmx/api prisma:generate && pnpm -r build",
-    "startCommand": "node dist/apps/api/prisma/heal-migrations.js && pnpm --filter @dtmx/api start:prod"
+    "startCommand": "pnpm --filter @dtmx/api prisma:deploy:heal:prod && pnpm --filter @dtmx/api start:prod"
   }
 }

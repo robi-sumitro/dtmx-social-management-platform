@@ -49,14 +49,18 @@ export class YoutubeProvider implements PlatformAdapter {
     };
 
     try {
-      const { data: location } = await axios.post(API, meta, {
+      // The resumable session URI is returned in the `Location` response header,
+      // not in the response body. Using the body here makes `uploadUrl` undefined
+      // and the PUT below fails with axios "Invalid URL".
+      const initRes = await axios.post(API, meta, {
         headers: {
           Authorization: `Bearer ${account.accessToken}`,
           'Content-Type': 'application/json',
           'X-Upload-Content-Type': video.mimeType || 'video/mp4',
         },
       });
-      const uploadUrl = location.location;
+      const uploadUrl = initRes.headers.location;
+      if (!uploadUrl) throw new Error('YouTube: respons init upload tanpa header Location');
 
       const fileUrl = `${post.mediaBaseUrl}/${video.filename}`;
       const fileRes = await axios.get(fileUrl, { responseType: 'stream' });

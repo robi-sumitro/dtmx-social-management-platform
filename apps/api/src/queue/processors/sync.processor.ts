@@ -102,6 +102,9 @@ export class SyncProcessor extends WorkerHost {
               authorId: item.authorId,
               content: item.content,
               mediaUrl: item.mediaUrl,
+              // Use the real comment timestamp so "terbaru" ordering reflects
+              // the platform's time, not the moment the sync pulled it.
+              createdAt: item.publishedAt ? new Date(item.publishedAt) : undefined,
             },
           });
           pulled += 1;
@@ -205,7 +208,10 @@ export class SyncProcessor extends WorkerHost {
     const since = new Date();
     since.setDate(since.getDate() - 30);
     const used = await this.prisma.aiUsage.count({ where: { userId, createdAt: { gte: since } } });
-    if (used >= quota) {
+    // Only enforce the cap when the plan actually has one. quota=0 (no active
+    // subscription/plan) previously made `used >= 0` always true and silently
+    // skipped every AI auto-reply.
+    if (quota > 0 && used >= quota) {
       this.logger.warn(`AI quota exhausted for user ${userId} — auto-reply skipped`);
       return null;
     }

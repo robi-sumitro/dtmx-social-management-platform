@@ -79,22 +79,52 @@ export class InboxService {
     const item = await this.prisma.inboxItem.findFirst({ where: { id: inboxId, userId } });
     if (!item) throw new NotFoundException('Inbox item tidak ditemukan');
 
-    const rule = await this.prisma.autoReplyRule.findFirst({
-      where: { userId, enabled: true, useAI: true },
-      orderBy: { updatedAt: 'desc' },
-    });
+    // Honor the matching enabled rule (template OR AI), exactly like the
+    // automatic sync path. Falls back to AI when no rule matches.
+    const rule = await this.findMatchingRule(userId, item);
+    let reply: string | null = null;
 
-    const prompt =
-      (rule?.aiPrompt || 'Balas dengan nada profesional dan ramah. Konten pesan:\n') +
-      `"${item.content || item.authorName || ''}"`;
+    if (rule && !rule.useAI) {
+      reply = (rule.replyTemplate || '').trim() || null;
+    } else {
+      const prompt =
+        (rule?.aiPrompt || 'Balas dengan nada profesional dan ramah. Konten pesan:\n') +
+        `"${item.content || item.authorName || ''}"`;
+      reply = await this.consumeQuota(userId, item, prompt);
+    }
 
-    const reply = await this.consumeQuota(userId, item, prompt);
+    if (!reply) {
+      throw new BadRequestException('Tidak ada balasan untuk dikirim. Periksa isi template/prompt aturan.');
+    }
+
     await this.prisma.inboxItem.update({
       where: { id: inboxId },
       data: { status: 'replied', repliedAt: new Date(), replyContent: reply },
     });
     await this.bulk.enqueueReply({ inboxId: item.id, accountId: item.accountId, text: reply });
     return { inboxId, status: 'replied', replyContent: reply };
+  }
+
+  /** Same rule matching used by the inbox-sync auto-reply path. */
+  private async findMatchingRule(
+    userId: string,
+    inbox: { accountId: string; content: string | null },
+  ) {
+    const rules = await this.prisma.autoReplyRule.findMany({
+      where: { userId, enabled: true },
+      orderBy: { updatedAt: 'desc' },
+    });
+    const text = (inbox.content || '').toLowerCase();
+    return rules.find((rule) => {
+      if (rule.accountId && rule.accountId !== inbox.accountId) return false;
+      if (rule.matchType === 'always') return true;
+      const needle = (rule.matchText || '').toLowerCase();
+      if (!needle) return rule.useAI;
+      if (rule.matchType === 'contains') return text.includes(needle);
+      if (rule.matchType === 'startsWith') return text.startsWith(needle);
+      if (rule.matchType === 'exact') return text === needle;
+      return false;
+    });
   }
 
   private async consumeQuota(userId: string, item: any, prompt: string): Promise<string> {
@@ -106,7 +136,9 @@ export class InboxService {
     const since = new Date();
     since.setDate(since.getDate() - 30);
     const used = await this.prisma.aiUsage.count({ where: { userId, createdAt: { gte: since } } });
-    if (used >= quota) {
+    // Only enforce when the plan actually has a quota; 0 used to block even the
+    // first AI reply for users without an active subscription.
+    if (quota > 0 && used >= quota) {
       throw new BadRequestException('Quota AI bulanan habis. Upgrade paket atau isi ulang kuota.');
     }
 
@@ -135,8 +167,8 @@ export class InboxService {
 
   /**
    * Hapus komentar: dari platform (channel) langsung + dari database.
-   * Jika platform tidak mendukung penghapusan via API, item tetap dihapus
-   * dari database dengan peringatan.
+   * Jika penghapusan dari platform gagal/ditolak, item tetap dihapus dari
+   * database dan alasan kegagalan dikembalikan sebagai peringatan.
    */
   async remove(userId: string, inboxId: string) {
     const item = await this.prisma.inboxItem.findFirst({
@@ -152,9 +184,7 @@ export class InboxService {
         try {
           await this.platforms.deleteComment(item.account, item.sourceId);
         } catch (err) {
-          throw new BadRequestException(
-            `Gagal menghapus dari ${provider}: ${(err as Error).message}`,
-          );
+          warning = `Komentar dihapus dari inbox, tetapi gagal dihapus dari ${provider}: ${(err as Error).message}`;
         }
       } else {
         warning = `Penghapusan dari ${provider} tidak didukung via API; hanya dihapus dari database.`;

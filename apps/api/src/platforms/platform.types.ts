@@ -38,6 +38,8 @@ export interface InboxPullItem {
   authorId?: string;
   content?: string;
   mediaUrl?: string;
+  /** When the comment/DM was actually created on the platform (ISO string). */
+  publishedAt?: string;
 }
 
 /** Aggregated engagement metrics (typically last 30 days). */

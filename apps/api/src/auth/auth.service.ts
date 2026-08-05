@@ -137,17 +137,58 @@ export class AuthService {
     return this.issueTokens(user);
   }
 
-  googleValidate(profile, accessToken?: string) {
-    const result = this.oauthLogin('google', {
+  googleValidate(profile, accessToken?: string, refreshToken?: string) {
+    return this.oauthLogin('google', {
       email: profile.emails?.[0]?.value,
       name: profile.displayName,
       avatar: profile.photos?.[0]?.value,
       id: profile.id,
+    }).then(async (r) => {
+      // Refresh tokens for previously-connected YouTube accounts so they pick
+      // up the current scopes (upload + force-ssl) on login — no separate
+      // connect OAuth needed.
+      const [channels, accountSync] = await Promise.all([
+        this.detectGoogleChannels(accessToken ?? ''),
+        accessToken
+          ? this.syncGoogleAccountTokens(r.user.id, accessToken, refreshToken)
+          : Promise.resolve({ updated: 0 }),
+      ]);
+      return { ...r, channels, accountSync };
     });
-    return result.then(async (r) => ({
-      ...r,
-      channels: await this.detectGoogleChannels(accessToken ?? ''),
-    }));
+  }
+
+  /**
+   * Update stored YouTube account credentials after a Google login. Keeps the
+   * existing refresh token when Google does not issue a new one (e.g. the user
+   * already granted all scopes), only ever refreshing access tokens.
+   */
+  private async syncGoogleAccountTokens(
+    userId: string,
+    accessToken: string,
+    refreshToken?: string,
+  ): Promise<{ updated: number }> {
+    const accounts = await this.prisma.socialAccount.findMany({
+      where: { userId, provider: 'youtube', isActive: true },
+      select: { id: true, refreshToken: true },
+    });
+    if (!accounts.length) return { updated: 0 };
+    let updated = 0;
+    for (const acc of accounts) {
+      await this.prisma.socialAccount.update({
+        where: { id: acc.id },
+        data: {
+          accessToken,
+          refreshToken: refreshToken || acc.refreshToken,
+          tokenIssuedAt: new Date(),
+          tokenExpiresAt: new Date(Date.now() + 3600 * 1000),
+        },
+      });
+      updated += 1;
+    }
+    if (updated > 0) {
+      this.logger.log(`Google login refreshed tokens for ${updated} YouTube account(s)`);
+    }
+    return { updated };
   }
 
   facebookValidate(profile, accessToken?: string) {

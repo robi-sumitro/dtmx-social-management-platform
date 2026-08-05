@@ -101,10 +101,16 @@ export class YoutubeProvider implements PlatformAdapter {
   /** Delete a comment (or reply) from the channel. Needs youtube.force-ssl. */
   async deleteComment(account: SocialAccount, targetId: string): Promise<PlatformResult> {
     if (!account.accessToken) throw new Error('YouTube: token tidak dikonfigurasi');
-    await axios.delete(`${DATA}/comments`, {
-      params: { id: targetId },
-      headers: { Authorization: `Bearer ${account.accessToken}` },
-    });
+    try {
+      await axios.delete(`${DATA}/comments`, {
+        params: { id: targetId },
+        headers: { Authorization: `Bearer ${account.accessToken}` },
+      });
+    } catch (err) {
+      // A 404 means the comment is already gone from YouTube — treat that as success.
+      if ((err as any)?.response?.status === 404) return { ok: true };
+      throw new Error(extractApiError(err));
+    }
     return { ok: true };
   }
 
@@ -134,6 +140,7 @@ export class YoutubeProvider implements PlatformAdapter {
         authorId: c.snippet?.authorChannelId?.value,
         authorName: c.snippet?.authorDisplayName,
         content: c.snippet?.textDisplay || '',
+        publishedAt: c.snippet?.publishedAt || undefined,
       });
     };
 
@@ -170,6 +177,7 @@ export class YoutubeProvider implements PlatformAdapter {
           allThreadsRelatedToChannelId: channelId,
           maxResults: 100,
           textFormat: 'plainText',
+          order: 'time',
           pageToken,
         },
         headers: { Authorization: `Bearer ${account.accessToken}` },

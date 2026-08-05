@@ -252,9 +252,10 @@ model InboxItem {
   authorId    String?
   content     String?
   mediaUrl    String?
-  status      String   @default("new") // new|replied|ignored|queued
-  repliedAt   DateTime?
-  createdAt   DateTime @default(now())
+  status        String   @default("new") // new|replied|ignored|queued
+  repliedAt     DateTime?
+  replyContent  String?
+  createdAt     DateTime @default(now())
 
   user    User          @relation(fields: [userId], references: [id])
   account SocialAccount @relation(fields: [accountId], references: [id])

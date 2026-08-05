@@ -113,6 +113,15 @@ export class InstagramProvider implements PlatformAdapter {
     return { ok: true, remoteId: data?.id };
   }
 
+  /** Delete an IG comment from the post. */
+  async deleteComment(account: SocialAccount, targetId: string): Promise<PlatformResult> {
+    if (!account.accessToken) throw new Error('Instagram: token tidak dikonfigurasi');
+    await axios.delete(`${GRAPH}/${targetId}`, {
+      params: { access_token: account.accessToken },
+    });
+    return { ok: true };
+  }
+
   /** Pull IG comments + DMs. Needs instagram_basic + instagram_manage_comments/messages. */
   async pullInbox(account: SocialAccount): Promise<InboxPullItem[]> {
     if (!account.accessToken) throw new Error('Instagram: token tidak dikonfigurasi');

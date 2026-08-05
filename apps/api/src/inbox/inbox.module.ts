@@ -3,10 +3,11 @@ import { InboxService } from './inbox.service';
 import { InboxController } from './inbox.controller';
 import { AIModule } from '../ai/ai.module';
 import { QueueModule } from '../queue/queue.module';
+import { PlatformsModule } from '../platforms/platforms.module';
 import { SecurityModule } from '../common/security.module';
 
 @Module({
-  imports: [AIModule, QueueModule, SecurityModule],
+  imports: [AIModule, QueueModule, PlatformsModule, SecurityModule],
   controllers: [InboxController],
   providers: [InboxService],
   exports: [InboxService],

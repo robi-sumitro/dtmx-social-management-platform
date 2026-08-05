@@ -7,6 +7,7 @@ import {
   RefreshCw,
   ChevronLeft,
   Bot,
+  Trash2,
 } from 'lucide-react';
 import { useFetch } from '@/lib/useApi';
 import { api } from '@/lib/api';
@@ -79,6 +80,18 @@ export function Inbox() {
     query.refetch();
   };
 
+  const removeItem = async (item: InboxItem) => {
+    if (!window.confirm('Hapus komentar ini dari channel dan dari inbox?')) return;
+    try {
+      const res = await api.delete<{ ok: boolean; warning?: string }>(`/inbox/${item.id}`);
+      toast.success('Komentar dihapus', res.warning);
+      setSelected(null);
+      query.refetch();
+    } catch (err) {
+      toast.error('Gagal menghapus', err instanceof Error ? err.message : 'Terjadi kesalahan');
+    }
+  };
+
   const runAutoReply = async () => {
     if (!selected) return;
     setAutoReplying(true);
@@ -95,9 +108,20 @@ export function Inbox() {
   };
 
   const allItems = query.data?.items ?? [];
-  const filtered = status === 'all' ? allItems : allItems.filter((i) => i.status === status);
+  // "Baru" = komentar terbaru yang masuk (termasuk yang sudah di-auto-reply),
+  // hanya komentar yang diabaikan yang disembunyikan. Urut newest-first dari server.
+  const filtered =
+    status === 'all'
+      ? allItems
+      : status === 'new'
+        ? allItems.filter((i) => i.status !== 'ignored')
+        : allItems.filter((i) => i.status === status);
   const counts = query.data?.counts ?? {};
-  const countOf = (s: string) => (s === 'all' ? (query.data?.total ?? allItems.length) : counts[s] ?? allItems.filter((i) => i.status === s).length);
+  const countOf = (s: string) => {
+    if (s === 'all') return query.data?.total ?? allItems.length;
+    if (s === 'new') return (query.data?.total ?? allItems.length) - (counts.ignored ?? 0);
+    return counts[s] ?? allItems.filter((i) => i.status === s).length;
+  };
   const selectedDetail = selected ?? filtered[0] ?? null;
 
   return (
@@ -183,6 +207,12 @@ export function Inbox() {
                       <span className="text-xs text-slate-400">{kind?.icon} {kind?.label}</span>
                       {item.account && <PlatformIcon provider={item.account.provider} size="h-3.5 w-3.5" />}
                     </div>
+                    {item.replyContent && (
+                      <p className="mt-1.5 flex items-center gap-1 truncate text-[11px] text-brand-600">
+                        <Bot className="h-3 w-3 shrink-0" />
+                        <span className="truncate">Balasan: {item.replyContent}</span>
+                      </p>
+                    )}
                   </button>
                 );
               })}
@@ -224,9 +254,14 @@ export function Inbox() {
                   {selectedDetail.mediaUrl && <img src={selectedDetail.mediaUrl} alt="" className="mt-3 max-h-64 rounded-xl" />}
                 </div>
 
-                {selectedDetail.status === 'replied' && (
+                {selectedDetail.replyContent && (
                   <div className="max-w-lg self-end rounded-2xl rounded-tr-md bg-brand-gradient px-4 py-3 text-white">
-                    <p className="text-sm leading-relaxed">Balasan terkirim pada {formatDateTime(selectedDetail.repliedAt)}</p>
+                    <p className="text-sm leading-relaxed">{selectedDetail.replyContent}</p>
+                    {selectedDetail.repliedAt && (
+                      <p className="mt-1 text-[10px] text-white/70">
+                        Dibalas {formatDateTime(selectedDetail.repliedAt)}
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -241,6 +276,14 @@ export function Inbox() {
                       Tandai Dibalas
                     </Button>
                   )}
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={() => void removeItem(selectedDetail)}
+                    icon={<Trash2 className="h-4 w-4" />}
+                  >
+                    Hapus
+                  </Button>
                 </div>
               </div>
 

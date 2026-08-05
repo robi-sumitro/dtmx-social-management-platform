@@ -43,7 +43,11 @@ export class RepliesProcessor extends WorkerHost {
 
     await this.prisma.inboxItem.update({
       where: { id: inboxId },
-      data: { status: sent ? 'replied' : 'queued', repliedAt: sent ? new Date() : undefined },
+      data: {
+        status: sent ? 'replied' : 'queued',
+        repliedAt: sent ? new Date() : undefined,
+        replyContent: sent ? text : undefined,
+      },
     });
     return { ok: sent, text };
   }

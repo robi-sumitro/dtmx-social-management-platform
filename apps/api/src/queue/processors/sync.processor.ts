@@ -169,7 +169,7 @@ export class SyncProcessor extends WorkerHost {
 
       await this.prisma.inboxItem.update({
         where: { id: inbox.id },
-        data: { status: 'queued' },
+        data: { status: 'queued', replyContent: reply },
       });
       await this.bulk.enqueueReply({
         inboxId: inbox.id,

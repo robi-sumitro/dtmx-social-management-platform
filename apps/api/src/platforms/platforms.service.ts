@@ -66,6 +66,22 @@ const result = await adapter.reply(account, ctx);
     return result.ok;
   }
 
+  /** Whether the platform supports deleting a comment from the channel. */
+  supportsDelete(provider: string): boolean {
+    const adapter = this.registry.get(provider);
+    return Boolean(adapter && typeof adapter.deleteComment === 'function');
+  }
+
+  /** Delete a comment/reply from the platform. Throws on hard failure. */
+  async deleteComment(account: SocialAccount, targetId: string): Promise<void> {
+    const adapter = this.adapterFor(account);
+    if (typeof adapter.deleteComment !== 'function') {
+      throw new Error(`Hapus komentar tidak didukung untuk platform ${account.provider}`);
+    }
+    const result = await adapter.deleteComment(account, targetId);
+    if (!result.ok) throw new Error(`Hapus komentar ditolak platform ${account.provider}`);
+  }
+
   /** Pull inbox items (comments/DMs) from the platform. Returns [] when unsupported. */
   async pullInbox(account: SocialAccount, since?: Date): Promise<InboxPullItem[]> {
     const adapter = this.adapterFor(account);

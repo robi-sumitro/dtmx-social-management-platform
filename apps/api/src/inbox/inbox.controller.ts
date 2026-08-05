@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -54,5 +55,10 @@ export class InboxController {
     @CurrentUser('id') userId: string,
   ) {
     return this.inbox.mark(userId, id, body.status);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string, @CurrentUser('id') userId: string) {
+    return this.inbox.remove(userId, id);
   }
 }

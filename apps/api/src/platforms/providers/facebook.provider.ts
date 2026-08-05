@@ -76,6 +76,15 @@ export class FacebookProvider implements PlatformAdapter {
     return { ok: true, remoteId: data.id };
   }
 
+  /** Delete a comment/reply from the page. */
+  async deleteComment(account: SocialAccount, targetId: string): Promise<PlatformResult> {
+    if (!this.hasToken(account)) throw new Error('Facebook: token tidak dikonfigurasi');
+    await axios.delete(`${GRAPH}/${targetId}`, {
+      params: { access_token: account.accessToken },
+    });
+    return { ok: true };
+  }
+
   /** Pull comments made on the page's posts (needs pages_read_user_content). */
   async pullInbox(account: SocialAccount): Promise<InboxPullItem[]> {
     if (!this.hasToken(account)) throw new Error('Facebook: token tidak dikonfigurasi');

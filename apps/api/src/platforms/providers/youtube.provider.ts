@@ -98,11 +98,57 @@ export class YoutubeProvider implements PlatformAdapter {
     }
   }
 
+  /** Delete a comment (or reply) from the channel. Needs youtube.force-ssl. */
+  async deleteComment(account: SocialAccount, targetId: string): Promise<PlatformResult> {
+    if (!account.accessToken) throw new Error('YouTube: token tidak dikonfigurasi');
+    await axios.delete(`${DATA}/comments`, {
+      params: { id: targetId },
+      headers: { Authorization: `Bearer ${account.accessToken}` },
+    });
+    return { ok: true };
+  }
+
   /** Pull comments from the channel's videos. Needs youtube.readonly (+ force-ssl to reply). */
   async pullInbox(account: SocialAccount): Promise<InboxPullItem[]> {
     if (!account.accessToken) throw new Error('YouTube: token tidak dikonfigurasi');
     const channelId = account.platformId;
     const items: InboxPullItem[] = [];
+    const seen = new Set<string>();
+
+    const pushComment = (c: any) => {
+      if (!c?.id || seen.has(c.id)) return;
+      seen.add(c.id);
+      items.push({
+        kind: 'comment',
+        sourceId: c.id,
+        authorId: c.snippet?.authorChannelId?.value,
+        authorName: c.snippet?.authorDisplayName,
+        content: c.snippet?.textDisplay || '',
+      });
+    };
+
+    // commentThreads only returns a limited set of replies (1 level, ~5 inline).
+    // Fetch the complete reply list — including nested replies — via comments.list.
+    const fetchReplies = async (parentId: string) => {
+      let replyToken: string | undefined;
+      do {
+        const { data } = await axios.get(`${DATA}/comments`, {
+          params: {
+            part: 'snippet',
+            parentId,
+            maxResults: 100,
+            textFormat: 'plainText',
+            pageToken: replyToken,
+          },
+          headers: { Authorization: `Bearer ${account.accessToken}` },
+        });
+        for (const c of data?.items ?? []) {
+          pushComment(c);
+          if ((c.snippet?.totalReplyCount ?? 0) > 0) await fetchReplies(c.id);
+        }
+        replyToken = data?.nextPageToken;
+      } while (replyToken && items.length < 500);
+    };
 
     let pageToken: string | undefined;
     do {
@@ -119,24 +165,17 @@ export class YoutubeProvider implements PlatformAdapter {
 
       for (const thread of data?.items ?? []) {
         const top = thread?.snippet?.topLevelComment;
-        if (top?.id) {
-          items.push({
-            kind: 'comment',
-            sourceId: top.id,
-            authorId: top.snippet?.authorChannelId?.value,
-            authorName: top.snippet?.authorDisplayName,
-            content: top.snippet?.textDisplay || '',
-          });
-        }
+        pushComment(top);
+
+        // Inline replies are only a subset of the thread; pull the rest via
+        // comments.list so sub-comments never get missed for auto-reply.
+        const inlineCount = thread?.replies?.comments?.length ?? 0;
+        const totalReplies = thread?.snippet?.totalReplyCount ?? 0;
         for (const reply of thread?.replies?.comments ?? []) {
-          items.push({
-            kind: 'comment',
-            sourceId: reply.id,
-            authorId: reply.snippet?.authorChannelId?.value,
-            authorName: reply.snippet?.authorDisplayName,
-            content: reply.snippet?.textDisplay || '',
-          });
+          pushComment(reply);
+          if ((reply.snippet?.totalReplyCount ?? 0) > 0) await fetchReplies(reply.id);
         }
+        if (top?.id && totalReplies > inlineCount) await fetchReplies(top.id);
       }
       pageToken = data?.nextPageToken;
     } while (pageToken && items.length < 500);

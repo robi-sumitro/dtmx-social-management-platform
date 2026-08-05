@@ -3,6 +3,7 @@ import { FeatureFlagService } from '../features/feature-flag.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AIService } from '../ai/ai.service';
 import { BulkProcessor } from '../queue/bulk.processor';
+import { PlatformsService } from '../platforms/platforms.service';
 
 @Injectable()
 export class InboxService {
@@ -12,6 +13,7 @@ export class InboxService {
     private readonly ai: AIService,
     private readonly flags: FeatureFlagService,
     private readonly bulk: BulkProcessor,
+    private readonly platforms: PlatformsService,
   ) {}
 
   async list(userId: string, filters: { status?: string; accountId?: string; page?: number; limit?: number }) {
@@ -66,7 +68,7 @@ export class InboxService {
 
     await this.prisma.inboxItem.update({
       where: { id: inboxId },
-      data: { status: 'replied', repliedAt: new Date() },
+      data: { status: 'replied', repliedAt: new Date(), replyContent },
     });
     // Kirim balasan ke platform lewat antrian (komentar/DM).
     await this.bulk.enqueueReply({ inboxId: item.id, accountId: item.accountId, text: replyContent });
@@ -89,7 +91,7 @@ export class InboxService {
     const reply = await this.consumeQuota(userId, item, prompt);
     await this.prisma.inboxItem.update({
       where: { id: inboxId },
-      data: { status: 'replied', repliedAt: new Date() },
+      data: { status: 'replied', repliedAt: new Date(), replyContent: reply },
     });
     await this.bulk.enqueueReply({ inboxId: item.id, accountId: item.accountId, text: reply });
     return { inboxId, status: 'replied', replyContent: reply };
@@ -129,5 +131,37 @@ export class InboxService {
       where: { id },
       data: { status },
     });
+  }
+
+  /**
+   * Hapus komentar: dari platform (channel) langsung + dari database.
+   * Jika platform tidak mendukung penghapusan via API, item tetap dihapus
+   * dari database dengan peringatan.
+   */
+  async remove(userId: string, inboxId: string) {
+    const item = await this.prisma.inboxItem.findFirst({
+      where: { id: inboxId, userId },
+      include: { account: true },
+    });
+    if (!item) throw new NotFoundException('Inbox item tidak ditemukan');
+
+    let warning: string | undefined;
+    if (item.sourceId && item.account) {
+      const provider = item.account.provider;
+      if (this.platforms.supportsDelete(provider)) {
+        try {
+          await this.platforms.deleteComment(item.account, item.sourceId);
+        } catch (err) {
+          throw new BadRequestException(
+            `Gagal menghapus dari ${provider}: ${(err as Error).message}`,
+          );
+        }
+      } else {
+        warning = `Penghapusan dari ${provider} tidak didukung via API; hanya dihapus dari database.`;
+      }
+    }
+
+    await this.prisma.inboxItem.delete({ where: { id: inboxId } });
+    return { ok: true, warning };
   }
 }

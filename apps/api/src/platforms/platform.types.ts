@@ -54,6 +54,8 @@ export interface PlatformAdapter {
   publish(account: SocialAccount, post: PublishContext): Promise<PlatformResult>;
   /** Push a reply/comment/DM to the platform. Throws on hard failure. */
   reply?(account: SocialAccount, ctx: ReplyContext): Promise<PlatformResult>;
+  /** Delete a comment/reply from the platform. Throws on hard failure. */
+  deleteComment?(account: SocialAccount, targetId: string): Promise<PlatformResult>;
   /** Pull new comments/DMs/mentions for an account. */
   pullInbox?(account: SocialAccount, since?: Date): Promise<InboxPullItem[]>;
   /** Fetch aggregated engagement metrics for an account. */

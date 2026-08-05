@@ -73,7 +73,14 @@ export class SyncProcessor extends WorkerHost {
         }
         const fresh = await this.prisma.socialAccount.findUnique({ where: { id: acc.id } });
         const accountRef = fresh ?? acc;
-        const items = await this.platforms.pullInbox(accountRef);
+        // Source ids already in the inbox, so adapters can skip re-fetching
+        // sub-resources (e.g. every YouTube thread's reply tree on each sync).
+        const existingRows = await this.prisma.inboxItem.findMany({
+          where: { userId: acc.userId, accountId: acc.id },
+          select: { sourceId: true },
+        });
+        const existingIds = existingRows.map((r) => r.sourceId).filter(Boolean) as string[];
+        const items = await this.platforms.pullInbox(accountRef, undefined, existingIds);
         for (const item of items) {
           if (!item.sourceId) continue;
           // Skip our own comments/replies (author == the channel/page itself).

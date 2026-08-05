@@ -83,10 +83,10 @@ const result = await adapter.reply(account, ctx);
   }
 
   /** Pull inbox items (comments/DMs) from the platform. Returns [] when unsupported. */
-  async pullInbox(account: SocialAccount, since?: Date): Promise<InboxPullItem[]> {
+  async pullInbox(account: SocialAccount, since?: Date, existingIds?: string[]): Promise<InboxPullItem[]> {
     const adapter = this.adapterFor(account);
     if (typeof adapter.pullInbox !== 'function') return [];
-    return adapter.pullInbox(account, since);
+    return adapter.pullInbox(account, since, existingIds);
   }
 
   /** Fetch aggregated engagement insights. Returns null when unsupported. */

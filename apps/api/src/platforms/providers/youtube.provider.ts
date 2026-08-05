@@ -45,7 +45,7 @@ export class YoutubeProvider implements PlatformAdapter {
     };
     const meta = {
       snippet,
-      status: { privacyStatus: 'private', selfDeclaredMadeForKids: false },
+      status: { privacyStatus: 'public', selfDeclaredMadeForKids: false },
     };
 
     try {
@@ -109,11 +109,21 @@ export class YoutubeProvider implements PlatformAdapter {
   }
 
   /** Pull comments from the channel's videos. Needs youtube.readonly (+ force-ssl to reply). */
-  async pullInbox(account: SocialAccount): Promise<InboxPullItem[]> {
+  async pullInbox(account: SocialAccount, _since?: Date, existingIds?: string[]): Promise<InboxPullItem[]> {
     if (!account.accessToken) throw new Error('YouTube: token tidak dikonfigurasi');
     const channelId = account.platformId;
     const items: InboxPullItem[] = [];
     const seen = new Set<string>();
+
+    // commentThreads.list with allThreadsRelatedToChannelId never returns the
+    // `replies` part, so the only way to get replies is comments.list. Pulling
+    // that for every thread on every 5-min sync blows through the YouTube daily
+    // API quota (10k units) and makes pullInbox fail wholesale — comments stop
+    // landing in the inbox. So only drill into the reply tree for comment
+    // threads that are genuinely new, and cap the calls as a safety net.
+    const existing = new Set(existingIds ?? []);
+    let replyCalls = 0;
+    const MAX_REPLY_CALLS = 50;
 
     const pushComment = (c: any) => {
       if (!c?.id || seen.has(c.id)) return;
@@ -132,6 +142,8 @@ export class YoutubeProvider implements PlatformAdapter {
     const fetchReplies = async (parentId: string) => {
       let replyToken: string | undefined;
       do {
+        if (replyCalls >= MAX_REPLY_CALLS) return;
+        replyCalls += 1;
         const { data } = await axios.get(`${DATA}/comments`, {
           params: {
             part: 'snippet',
@@ -175,7 +187,7 @@ export class YoutubeProvider implements PlatformAdapter {
           pushComment(reply);
           if ((reply.snippet?.totalReplyCount ?? 0) > 0) await fetchReplies(reply.id);
         }
-        if (top?.id && totalReplies > inlineCount) await fetchReplies(top.id);
+        if (top?.id && !existing.has(top.id) && totalReplies > inlineCount) await fetchReplies(top.id);
       }
       pageToken = data?.nextPageToken;
     } while (pageToken && items.length < 500);

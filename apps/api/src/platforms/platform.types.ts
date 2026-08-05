@@ -57,7 +57,7 @@ export interface PlatformAdapter {
   /** Delete a comment/reply from the platform. Throws on hard failure. */
   deleteComment?(account: SocialAccount, targetId: string): Promise<PlatformResult>;
   /** Pull new comments/DMs/mentions for an account. */
-  pullInbox?(account: SocialAccount, since?: Date): Promise<InboxPullItem[]>;
+  pullInbox?(account: SocialAccount, since?: Date, existingIds?: string[]): Promise<InboxPullItem[]>;
   /** Fetch aggregated engagement metrics for an account. */
   insights?(account: SocialAccount, since?: Date): Promise<PlatformInsights | null>;
 }

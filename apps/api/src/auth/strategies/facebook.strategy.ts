@@ -18,7 +18,10 @@ export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
       scope: ['email', 'public_profile'],
       profileFields: ['id', 'emails', 'name', 'displayName', 'photos'],
       graphAPIVersion: 'v24.0',
-      state: true,
+      // This API is stateless (JWT auth, no express-session), so passport's
+      // OAuth `state` parameter cannot be validated — disable it to avoid
+      // "requires session support when using state".
+      state: false,
       failureRedirect: `${getAppBaseUrl(config)}/api/auth/oauth-failed`,
     });
   }

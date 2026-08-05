@@ -72,9 +72,14 @@ export class SyncProcessor extends WorkerHost {
           }
         }
         const fresh = await this.prisma.socialAccount.findUnique({ where: { id: acc.id } });
-        const items = await this.platforms.pullInbox(fresh ?? acc);
+        const accountRef = fresh ?? acc;
+        const items = await this.platforms.pullInbox(accountRef);
         for (const item of items) {
           if (!item.sourceId) continue;
+          // Skip our own comments/replies (author == the channel/page itself).
+          // Otherwise the bot would auto-reply to its own replies endlessly.
+          const ownIds = [accountRef.platformId, accountRef.instagramId].filter(Boolean);
+          if (item.authorId && ownIds.includes(item.authorId)) continue;
           const exists = await this.prisma.inboxItem.findFirst({
             where: { userId: acc.userId, accountId: acc.id, sourceId: item.sourceId },
             select: { id: true },

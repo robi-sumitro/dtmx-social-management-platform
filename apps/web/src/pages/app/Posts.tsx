@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Plus, FileText, Trash2, Ban, CalendarClock, Calendar, LayoutGrid, Upload } from 'lucide-react';
 import { useFetch } from '@/lib/useApi';
 import { api } from '@/lib/api';
-import type { Post } from '@/lib/types';
+import type { MediaFile, Post, SocialAccount } from '@/lib/types';
 import { cn, formatDate, formatDateTime, postStatusMeta, postTitle } from '@/lib/utils';
 import { getActiveTimezone, fromLocalInputValue } from '@/lib/timezone';
 import { PageHeader, PlatformIcon, ErrorPanel } from '@/components/shared/PageHeader';
@@ -27,6 +27,97 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: 'failed', label: 'Gagal' },
 ];
 
+/** Minimal RFC4180-style CSV parser: handles quoted fields (commas, quotes). */
+function parseCsv(text: string): string[][] {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let inQuotes = false;
+  const pushField = () => {
+    row.push(field.trim());
+    field = '';
+  };
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else {
+          inQuotes = false;
+        }
+      } else {
+        field += ch;
+      }
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ',') {
+      pushField();
+    } else if (ch === '\n') {
+      pushField();
+      if (row.some((c) => c !== '')) rows.push(row);
+      row = [];
+    } else if (ch !== '\r') {
+      field += ch;
+    }
+  }
+  pushField();
+  if (row.some((c) => c !== '')) rows.push(row);
+  return rows;
+}
+
+function isHeaderRow(row: string[]): boolean {
+  const first = (row[0] || '').toLowerCase();
+  const second = (row[1] || '').toLowerCase();
+  return first === 'title' || first === 'judul' || second === 'caption';
+}
+
+/** Resolve "Nama Akun A|Nama Akun B" (or ids) to account ids. Matched by name or id. */
+function resolveAccounts(raw: string | undefined, accounts: SocialAccount[]): string[] {
+  if (!raw) return [];
+  const ids = new Set<string>();
+  for (const part of raw.split('|')) {
+    const v = part.trim();
+    if (!v) continue;
+    const lower = v.toLowerCase();
+    const byId = accounts.find((a) => a.id === v);
+    if (byId) {
+      ids.add(byId.id);
+      continue;
+    }
+    const byName = accounts.find((a) => a.accountName.toLowerCase() === lower);
+    if (byName) ids.add(byName.id);
+  }
+  return Array.from(ids);
+}
+
+/** Resolve media references (original name, filename, or id, pipe-separated) to MediaFile objects. */
+function resolveMedia(raw: string | undefined, media: MediaFile[]): MediaFile[] {
+  if (!raw) return [];
+  const found: MediaFile[] = [];
+  for (const part of raw.split('|')) {
+    const v = part.trim();
+    if (!v) continue;
+    const lower = v.toLowerCase();
+    const byId = media.find((m) => m.id === v);
+    if (byId) {
+      found.push(byId);
+      continue;
+    }
+    const byOrig = media.find((m) => m.originalName.toLowerCase() === lower);
+    if (byOrig) {
+      found.push(byOrig);
+      continue;
+    }
+    const byFile = media.find(
+      (m) => m.filename.toLowerCase() === lower || m.filename.toLowerCase().endsWith(`/${lower}`),
+    );
+    if (byFile) found.push(byFile);
+  }
+  return found;
+}
+
 export function Posts() {
   const [filter, setFilter] = useState<Filter>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -42,31 +133,56 @@ export function Posts() {
     setUploadingCsv(true);
     try {
       const text = await file.text();
-      const lines = text.split('\n').filter(Boolean);
-      let imported = 0;
-      // Skip header if any
-      const startIndex = lines[0].toLowerCase().includes('caption') ? 1 : 0;
-      for (let i = startIndex; i < lines.length; i++) {
-        const parts = lines[i].split(',').map((s) => s.trim().replace(/^"|"$/g, ''));
-        const [title, caption, scheduledAt] = parts;
-        if (caption) {
-          await api.post('/posts', {
-            title: title || 'Bulk Post',
-            caption,
-            postType: 'text',
-            scheduledAt: scheduledAt
-              ? (fromLocalInputValue(scheduledAt)?.toISOString() ??
-                (() => {
-                  const d = new Date(scheduledAt);
-                  return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
-                })())
-              : undefined,
-            action: scheduledAt ? 'schedule' : 'draft',
-          });
-          imported++;
-        }
+      const rows = parseCsv(text);
+      if (rows.length === 0) {
+        toast.error('File kosong', 'Tidak ada baris yang bisa diimpor.');
+        return;
       }
-      toast.success(`Berhasil mengimpor ${imported} postingan`);
+
+      const startIndex = isHeaderRow(rows[0]) ? 1 : 0;
+      const [accounts, media] = await Promise.all([
+        api.get<SocialAccount[]>('/social-accounts').catch(() => []),
+        api.get<MediaFile[]>('/media').catch(() => []),
+      ]);
+
+      let imported = 0;
+      const warnings: string[] = [];
+      for (let i = startIndex; i < rows.length; i++) {
+        const [title, caption, scheduledAt, accountsRaw, mediaRaw] = rows[i];
+        const matchedMedia = resolveMedia(mediaRaw, media);
+        const accountIds = resolveAccounts(accountsRaw, accounts);
+        if (!title?.trim() && !caption?.trim() && matchedMedia.length === 0) continue;
+
+        const hasVideo = matchedMedia.some((m) => m.fileType === 'video');
+        const hasImage = matchedMedia.some((m) => m.fileType === 'image');
+        const postType = hasVideo ? 'video' : hasImage ? 'image' : 'text';
+        const lineNo = i + 1;
+        if ((accountsRaw || '').trim() && accountIds.length === 0) {
+          warnings.push(`Baris ${lineNo}: akun "${accountsRaw}" tidak ditemukan`);
+        }
+        if ((mediaRaw || '').trim() && matchedMedia.length === 0) {
+          warnings.push(`Baris ${lineNo}: media "${mediaRaw}" tidak ditemukan di library`);
+        }
+
+        await api.post('/posts', {
+          title: title?.trim() || 'Bulk Post',
+          caption: caption?.trim(),
+          postType,
+          accountIds,
+          mediaIds: matchedMedia.map((m) => m.id),
+          scheduledAt: scheduledAt
+            ? (fromLocalInputValue(scheduledAt)?.toISOString() ??
+              (() => {
+                const d = new Date(scheduledAt);
+                return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+              })())
+            : undefined,
+          action: scheduledAt ? 'schedule' : 'draft',
+        });
+        imported++;
+      }
+      const warnMsg = warnings.length ? ` (${warnings.length} peringatan)` : '';
+      toast.success(`Berhasil mengimpor ${imported} postingan${warnMsg}`, warnings.slice(0, 5).join('\n'));
       refetch();
     } catch (err) {
       toast.error('Gagal import CSV', err instanceof Error ? err.message : 'Format CSV tidak valid');

@@ -5,7 +5,7 @@ import { useFetch } from '@/lib/useApi';
 import { api } from '@/lib/api';
 import type { MediaFile, Post, SocialAccount } from '@/lib/types';
 import { cn, formatDate, formatDateTime, postStatusMeta, postTitle } from '@/lib/utils';
-import { getActiveTimezone, fromLocalInputValue } from '@/lib/timezone';
+import { getActiveTimezone, fromLocalInputValue, toLocalInputValue } from '@/lib/timezone';
 import { PageHeader, PlatformIcon, ErrorPanel } from '@/components/shared/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Tabs } from '@/components/ui/Tabs';
@@ -26,6 +26,33 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: 'published', label: 'Terbit' },
   { value: 'failed', label: 'Gagal' },
 ];
+
+/**
+ * Parse a table file (CSV/TXT or Excel .xlsx/.xls) into string rows.
+ * Excel date cells are normalized to "YYYY-MM-DDTHH:mm" in the active timezone.
+ */
+async function readTableFile(file: File): Promise<string[][]> {
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.csv') || name.endsWith('.txt')) {
+    return parseCsv(await file.text());
+  }
+  // Loaded lazily so the main bundle stays small; only fetched for Excel imports.
+  const XLSX = await import('xlsx');
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  if (!sheet) return [];
+  const raw = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '', raw: true });
+  return raw.map((r) => {
+    const cells = Array.isArray(r) ? r : [r];
+    return cells.map((c) => {
+      if (c instanceof Date && !Number.isNaN(c.getTime())) {
+        return toLocalInputValue(c);
+      }
+      return String(c ?? '').trim();
+    });
+  });
+}
 
 /** Minimal RFC4180-style CSV parser: handles quoted fields (commas, quotes). */
 function parseCsv(text: string): string[][] {
@@ -132,8 +159,7 @@ export function Posts() {
     if (!file) return;
     setUploadingCsv(true);
     try {
-      const text = await file.text();
-      const rows = parseCsv(text);
+      const rows = await readTableFile(file);
       if (rows.length === 0) {
         toast.error('File kosong', 'Tidak ada baris yang bisa diimpor.');
         return;
@@ -228,7 +254,7 @@ export function Posts() {
       <input
         ref={csvRef}
         type="file"
-        accept=".csv,.txt"
+        accept=".csv,.txt,.xlsx,.xls"
         className="hidden"
         onChange={(e) => {
           void handleCsvImport(e.target.files?.[0] ?? null);
@@ -247,7 +273,7 @@ export function Posts() {
               loading={uploadingCsv}
               onClick={() => csvRef.current?.click()}
             >
-              Import CSV
+              Import CSV/Excel
             </Button>
             <div className="flex rounded-lg bg-slate-100 p-1">
               <button

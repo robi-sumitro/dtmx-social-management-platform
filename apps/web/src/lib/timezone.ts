@@ -97,30 +97,39 @@ export function fromLocalInputValue(value: string): Date | null {
   if (!m) return null;
   const [, y, mo, d, h, mi, s] = m;
   const timeZone = getActiveTimezone();
-  const parts: Record<string, number> = {
-    year: Number(y),
-    month: Number(mo) - 1,
-    day: Number(d),
-    hour: Number(h),
-    minute: Number(mi),
-    second: Number(s || 0),
+  // The wall-clock time the user typed, treated as if it were UTC (a starting guess).
+  const target = Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s || 0));
+  if (Number.isNaN(target)) return null;
+
+  // Render an instant as a Date.UTC() of its wall-clock fields in the active zone.
+  const render = (utcMs: number): number => {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(new Date(utcMs));
+    const gp = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
+    return Date.UTC(gp('year'), gp('month') - 1, gp('day'), gp('hour'), gp('minute'), gp('second'));
   };
-  // Walk the date in the target zone to build a UTC instant.
-  const asUTC = Date.UTC(parts.year, parts.month, parts.day, parts.hour, parts.minute, parts.second);
-  const guess = new Date(asUTC);
-  const guessParts = new Intl.DateTimeFormat('en-CA', {
-    timeZone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(guess);
-  const gp = (t: string) => Number(guessParts.find((p) => p.type === t)?.value ?? 0);
-  const diff = Date.UTC(gp('year'), gp('month') - 1, gp('day'), gp('hour'), gp('minute'), gp('second')) - asUTC;
-  return new Date(asUTC + diff);
+
+  // Fixed-point iteration: find the UTC instant whose rendered wall-clock equals
+  // the typed value. best_{n+1} = target - (render(best_n) - best_n). The sign is
+  // crucial: adding the offset (as a naive conversion does) shifts times by 2x the
+  // UTC offset (e.g. a 09:45 WIB pick would be stored as 16:45Z and re-displayed 23:45).
+  let best = target;
+  for (let i = 0; i < 3; i++) {
+    const rendered = render(best);
+    if (Number.isNaN(rendered)) break;
+    const next = target - (rendered - best);
+    if (next === best) break;
+    best = next;
+  }
+  return new Date(best);
 }
 
 export const TIMEZONE_OPTIONS: string[] = [

@@ -5,7 +5,7 @@ import { useFetch } from '@/lib/useApi';
 import { api } from '@/lib/api';
 import type { Post } from '@/lib/types';
 import { cn, formatDate, formatDateTime, postStatusMeta, postTitle } from '@/lib/utils';
-import { getActiveTimezone } from '@/lib/timezone';
+import { getActiveTimezone, fromLocalInputValue } from '@/lib/timezone';
 import { PageHeader, PlatformIcon, ErrorPanel } from '@/components/shared/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Tabs } from '@/components/ui/Tabs';
@@ -54,7 +54,13 @@ export function Posts() {
             title: title || 'Bulk Post',
             caption,
             postType: 'text',
-            scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : undefined,
+            scheduledAt: scheduledAt
+              ? (fromLocalInputValue(scheduledAt)?.toISOString() ??
+                (() => {
+                  const d = new Date(scheduledAt);
+                  return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+                })())
+              : undefined,
             action: scheduledAt ? 'schedule' : 'draft',
           });
           imported++;

@@ -419,7 +419,7 @@ function PlansAdmin() {
   const [saving, setSaving] = useState(false);
 
   const openEdit = (plan: Plan | null) => {
-    setEdit(plan ?? ({ name: '', slug: '', description: '', price: 0, currency: 'USD', billingPeriodDays: 30, maxAccounts: 1, maxPostsPerMonth: 10, aiPerMonth: 20, isActive: true } as Plan));
+    setEdit(plan ?? ({ name: '', slug: '', description: '', price: 0, currency: 'USD', billingPeriodDays: 30, maxAccounts: 1, maxPostsPerMonth: 10, aiPerMonth: 20, apiQuotaPerDay: 500, isActive: true } as Plan));
     setForm(plan ?? {});
   };
 
@@ -486,10 +486,11 @@ function PlansAdmin() {
                 {formatCurrency(p.price, p.currency)}
                 <span className="text-sm font-normal text-slate-400"> /bulan</span>
               </p>
-              <div className="mt-3 grid grid-cols-3 gap-2 text-center text-xs">
+              <div className="mt-3 grid grid-cols-2 gap-2 text-center text-xs">
                 <div className="rounded-lg bg-slate-50 py-2"><span className="block font-bold text-slate-800">{p.maxAccounts}</span><span className="text-slate-400">akun</span></div>
                 <div className="rounded-lg bg-slate-50 py-2"><span className="block font-bold text-slate-800">{p.maxPostsPerMonth}</span><span className="text-slate-400">posting</span></div>
                 <div className="rounded-lg bg-slate-50 py-2"><span className="block font-bold text-slate-800">{p.aiPerMonth}</span><span className="text-slate-400">AI</span></div>
+                <div className="rounded-lg bg-slate-50 py-2"><span className="block font-bold text-slate-800">{p.apiQuotaPerDay ?? 500}</span><span className="text-slate-400">API/hari</span></div>
               </div>
               <div className="mt-4 flex items-center justify-end gap-1.5">
                 <Button size="sm" variant="ghost" onClick={() => openEdit(p)} icon={<Pencil className="h-4 w-4" />}>
@@ -526,6 +527,7 @@ function PlansAdmin() {
           <Input label="Maks. Akun" type="number" value={form.maxAccounts ?? 1} onChange={(e) => setForm((f) => ({ ...f, maxAccounts: Number(e.target.value) }))} />
           <Input label="Maks. Posting/Bulan" type="number" value={form.maxPostsPerMonth ?? 10} onChange={(e) => setForm((f) => ({ ...f, maxPostsPerMonth: Number(e.target.value) }))} />
           <Input label="Kuota AI/Bulan" type="number" value={form.aiPerMonth ?? 20} onChange={(e) => setForm((f) => ({ ...f, aiPerMonth: Number(e.target.value) }))} />
+          <Input label="Kuota API/Hari (unit, 0 = tanpa batas)" type="number" value={form.apiQuotaPerDay ?? 500} onChange={(e) => setForm((f) => ({ ...f, apiQuotaPerDay: Number(e.target.value) }))} />
           <div className="flex items-end pb-2">
             <Switch checked={!!form.isActive} onChange={(v) => setForm((f) => ({ ...f, isActive: v }))} label="Aktif" />
           </div>

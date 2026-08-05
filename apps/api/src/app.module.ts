@@ -7,6 +7,7 @@ import { join } from 'path';
 import { existsSync } from 'fs';
 
 import { PrismaModule } from './prisma/prisma.module';
+import { QuotaModule } from './quota/quota.module';
 import { SecurityModule } from './common/security.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
@@ -74,6 +75,7 @@ import { AppController } from './app.controller';
       },
     }),
     PrismaModule,
+    QuotaModule,
     FeatureFlagsModule,
     AuthModule,
     UsersModule,

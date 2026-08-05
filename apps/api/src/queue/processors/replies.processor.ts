@@ -4,6 +4,7 @@ import { Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { PlatformsService } from '../../platforms/platforms.service';
 import { SocialAccountsService } from '../../social-accounts/social-accounts.service';
+import { QuotaExceededError } from '../../quota/quota-guard.service';
 
 @Processor('replies')
 export class RepliesProcessor extends WorkerHost {
@@ -34,12 +35,24 @@ export class RepliesProcessor extends WorkerHost {
       if (fresh) account = fresh;
     }
 
-    const sent = await this.platforms.reply(account, {
-      text,
-      authorId: inbox.authorId,
-      targetId: inbox.sourceId,
-      kind: inbox.kind,
-    });
+    let sent = false;
+    try {
+      sent = await this.platforms.reply(account, {
+        text,
+        authorId: inbox.authorId,
+        targetId: inbox.sourceId,
+        kind: inbox.kind,
+      });
+    } catch (err) {
+      // Kuota API habis: jangan di-retry terus (tetap 'queued', balasan bisa
+      // dicoba lagi besok saat kuota reset).
+      if (err instanceof QuotaExceededError) {
+        this.logger.warn(`reply ${inboxId} ditahan kuota: ${err.message}`);
+        sent = false;
+      } else {
+        throw err;
+      }
+    }
 
     await this.prisma.inboxItem.update({
       where: { id: inboxId },

@@ -32,6 +32,7 @@ export interface Plan {
   maxAccounts: number;
   maxPostsPerMonth: number;
   aiPerMonth: number;
+  apiQuotaPerDay?: number;
   isActive: boolean;
   createdAt?: string;
 }

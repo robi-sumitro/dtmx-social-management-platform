@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import axios from 'axios';
 import { SocialAccount } from '@prisma/client';
+import { QuotaExceededError, QuotaGuardService } from '../../quota/quota-guard.service';
 import {
   InboxPullItem,
   PlatformAdapter,
@@ -15,14 +16,19 @@ const API = 'https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resu
 const DATA = 'https://www.googleapis.com/youtube/v3';
 
 /** Extract a readable message from a YouTube API error response. */
-function extractApiError(err: any): string {
+function extractApiError(err: any): Error {
   const detail = err?.response?.data?.error;
-  const reason = detail?.errors?.map((e: any) => e.reason).filter(Boolean).join(', ');
+  const reasons = (detail?.errors ?? []).map((e: any) => e.reason).filter(Boolean) as string[];
   const message = detail?.message;
-  if (reason) return `YouTube: ${reason}`;
-  if (message) return `YouTube: ${message}`;
-  if (err?.response?.status) return `YouTube: permintaan ditolak (HTTP ${err.response.status})`;
-  return `YouTube: ${err?.message || 'gagal mengunggah video'}`;
+  // Batas kuota proyek Google Cloud benar-benar tercapai (403 quotaExceeded).
+  // Dilempar sebagai QuotaExceededError agar antrian balasan tidak di-retry terus.
+  if (reasons.includes('quotaExceeded')) {
+    return new QuotaExceededError(`YouTube: kuota API harian habis (quotaExceeded). ${message || ''}`.trim());
+  }
+  if (reasons.length) return new Error(`YouTube: ${reasons.join(', ')}`);
+  if (message) return new Error(`YouTube: ${message}`);
+  if (err?.response?.status) return new Error(`YouTube: permintaan ditolak (HTTP ${err.response.status})`);
+  return new Error(`YouTube: ${err?.message || 'gagal mengunggah video'}`);
 }
 
 /**
@@ -33,6 +39,7 @@ function extractApiError(err: any): string {
 export class YoutubeProvider implements PlatformAdapter {
   readonly provider = 'youtube';
   private readonly logger = new Logger(YoutubeProvider.name);
+  constructor(private readonly quota: QuotaGuardService) {}
 
   async publish(account: SocialAccount, post: PublishContext): Promise<PlatformResult> {
     if (!account.accessToken) throw new Error('YouTube: access token tidak dikonfigurasi');
@@ -74,7 +81,7 @@ export class YoutubeProvider implements PlatformAdapter {
       this.logger.log(`YouTube upload initiated: ${uploaded.id}`);
       return { ok: true, remoteId: uploaded.id };
     } catch (err) {
-      throw new Error(extractApiError(err));
+      throw extractApiError(err);
     }
   }
 
@@ -84,6 +91,8 @@ export class YoutubeProvider implements PlatformAdapter {
     if (!target) return { ok: false };
     const text = (ctx.text || '').slice(0, 1000).trim();
     if (!text) return { ok: false };
+    // Balasan komentar = 50 unit (comments.insert); dijaga kuota global + per-user.
+    await this.quota.consume('youtube', 50, account.userId, { write: true });
     try {
       const { data } = await axios.post(
         `${DATA}/comments?part=snippet`,
@@ -94,13 +103,15 @@ export class YoutubeProvider implements PlatformAdapter {
       );
       return { ok: true, remoteId: data?.id };
     } catch (err) {
-      throw new Error(extractApiError(err));
+      throw extractApiError(err);
     }
   }
 
   /** Delete a comment (or reply) from the channel. Needs youtube.force-ssl. */
   async deleteComment(account: SocialAccount, targetId: string): Promise<PlatformResult> {
     if (!account.accessToken) throw new Error('YouTube: token tidak dikonfigurasi');
+    // Hapus komentar = 50 unit (comments.delete); dijaga kuota global + per-user.
+    await this.quota.consume('youtube', 50, account.userId, { write: true });
     try {
       await axios.delete(`${DATA}/comments`, {
         params: { id: targetId },
@@ -109,7 +120,7 @@ export class YoutubeProvider implements PlatformAdapter {
     } catch (err) {
       // A 404 means the comment is already gone from YouTube — treat that as success.
       if ((err as any)?.response?.status === 404) return { ok: true };
-      throw new Error(extractApiError(err));
+      throw extractApiError(err);
     }
     return { ok: true };
   }
@@ -155,6 +166,8 @@ export class YoutubeProvider implements PlatformAdapter {
       do {
         if (replyCalls >= MAX_REPLY_CALLS) return;
         replyCalls += 1;
+        // Baca komentar = 1 unit (comments.list); dijaga kuota global proyek.
+        await this.quota.consume('youtube', 1, account.userId);
         const { data } = await axios.get(`${DATA}/comments`, {
           params: {
             part: 'snippet',
@@ -179,6 +192,8 @@ export class YoutubeProvider implements PlatformAdapter {
 
     let pageToken: string | undefined;
     do {
+      // Baca thread = 1 unit (commentThreads.list); dijaga kuota global proyek.
+      await this.quota.consume('youtube', 1, account.userId);
       const { data } = await axios.get(`${DATA}/commentThreads`, {
         params: {
           part: 'snippet,replies',

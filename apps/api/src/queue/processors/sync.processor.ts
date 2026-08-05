@@ -7,6 +7,7 @@ import { SocialAccountsService } from '../../social-accounts/social-accounts.ser
 import { AIService } from '../../ai/ai.service';
 import { BulkProcessor } from '../../queue/bulk.processor';
 import { NotificationsService } from '../../notifications/notifications.service';
+import { QuotaGuardService } from '../../quota/quota-guard.service';
 
 type AutoReplyRule = {
   id: string;
@@ -28,6 +29,7 @@ export class SyncProcessor extends WorkerHost {
     private readonly ai: AIService,
     private readonly bulk: BulkProcessor,
     private readonly notifications: NotificationsService,
+    private readonly quota: QuotaGuardService,
   ) {
     super();
   }
@@ -147,7 +149,7 @@ export class SyncProcessor extends WorkerHost {
 
   /** Evaluate auto-reply rules for a freshly pulled inbox item and enqueue a reply when matched. */
   private async tryAutoReply(
-    acc: { userId: string },
+    acc: { userId: string; provider: string },
     inbox: {
       id: string;
       accountId: string;
@@ -174,6 +176,16 @@ export class SyncProcessor extends WorkerHost {
         return false;
       });
       if (!matched) return;
+
+      // Jangan buang kuota AI untuk balasan yang ujungnya ditahan penjaga
+      // kuota YouTube (50 unit per balasan). Cek dulu sisa anggaran tulis.
+      if (acc.provider === 'youtube') {
+        const budget = await this.quota.checkWriteBudget('youtube', 50, acc.userId);
+        if (!budget.allowed) {
+          this.logger.warn(`auto-reply skipped for user ${acc.userId}: ${budget.reason}`);
+          return;
+        }
+      }
 
       const reply = await this.buildReply(acc.userId, inbox, matched);
       if (!reply) return;

@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AIService } from '../ai/ai.service';
 import { BulkProcessor } from '../queue/bulk.processor';
 import { PlatformsService } from '../platforms/platforms.service';
+import { QuotaGuardService } from '../quota/quota-guard.service';
 
 @Injectable()
 export class InboxService {
@@ -14,6 +15,7 @@ export class InboxService {
     private readonly flags: FeatureFlagService,
     private readonly bulk: BulkProcessor,
     private readonly platforms: PlatformsService,
+    private readonly quota: QuotaGuardService,
   ) {}
 
   async list(userId: string, filters: { status?: string; accountId?: string; page?: number; limit?: number }) {
@@ -55,11 +57,16 @@ export class InboxService {
     const item = await this.prisma.inboxItem.findFirst({ where: { id: inboxId, userId } });
     if (!item) throw new NotFoundException('Inbox item tidak ditemukan');
 
+    if (useAI) {
+      await this.flags.assertEnabled('ai_replies');
+      // Jangan buang kuota AI kalau balasan YouTube akan ditahan penjaga kuota.
+      await this.assertReplyBudget(userId, item.accountId);
+    }
+
     let replyContent = text;
     let aiUsed = false;
 
     if (useAI) {
-      await this.flags.assertEnabled('ai_replies');
       const result = await this.consumeQuota(userId, item, text);
       replyContent = result;
       aiUsed = true;
@@ -78,6 +85,9 @@ export class InboxService {
   async autoReply(userId: string, inboxId: string) {
     const item = await this.prisma.inboxItem.findFirst({ where: { id: inboxId, userId } });
     if (!item) throw new NotFoundException('Inbox item tidak ditemukan');
+
+    // Jangan buang kuota AI kalau balasan YouTube akan ditahan penjaga kuota.
+    await this.assertReplyBudget(userId, item.accountId);
 
     // Honor the matching enabled rule (template OR AI), exactly like the
     // automatic sync path. Falls back to AI when no rule matches.
@@ -125,6 +135,16 @@ export class InboxService {
       if (rule.matchType === 'exact') return text === needle;
       return false;
     });
+  }
+
+  /** Tolak balasan manual lebih awal bila kuota tulis YouTube user sudah habis. */
+  private async assertReplyBudget(userId: string, accountId: string): Promise<void> {
+    const acc = await this.prisma.socialAccount.findUnique({ where: { id: accountId } });
+    if (acc?.provider !== 'youtube') return;
+    const budget = await this.quota.checkWriteBudget('youtube', 50, userId);
+    if (!budget.allowed) {
+      throw new BadRequestException(budget.reason);
+    }
   }
 
   private async consumeQuota(userId: string, item: any, prompt: string): Promise<string> {

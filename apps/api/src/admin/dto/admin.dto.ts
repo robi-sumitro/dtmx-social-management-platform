@@ -70,6 +70,11 @@ export class PlanDto {
   aiPerMonth!: number;
 
   @IsOptional()
+  @IsInt()
+  @Min(0)
+  apiQuotaPerDay?: number;
+
+  @IsOptional()
   @IsBoolean()
   isActive?: boolean;
 }
@@ -115,6 +120,11 @@ export class UpdatePlanDto {
   @IsInt()
   @Min(0)
   aiPerMonth?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  apiQuotaPerDay?: number;
 
   @IsOptional()
   @IsBoolean()

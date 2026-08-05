@@ -10,8 +10,9 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useFetch } from '@/lib/useApi';
+import { useInbox } from '@/lib/useInbox';
 import { api } from '@/lib/api';
-import type { InboxItem, SocialAccount, InboxListResponse } from '@/lib/types';
+import type { InboxItem, SocialAccount } from '@/lib/types';
 import { cn, inboxStatusMeta, timeAgo, formatDateTime } from '@/lib/utils';
 import { PageHeader, PlatformIcon } from '@/components/shared/PageHeader';
 import { Card } from '@/components/ui/Card';
@@ -89,21 +90,17 @@ export function Inbox() {
   const [sending, setSending] = useState(false);
   const [autoReplying, setAutoReplying] = useState(false);
 
-  // Fetch the full list (no status filter) so tab counts stay consistent and the
-  // open tab never masks the others. Polls every 30s to keep badges in sync.
-  const query = useFetch<InboxListResponse>(
-    () => api.get(`/inbox?accountId=${accountId === 'all' ? '' : accountId}&limit=500`),
-    [accountId],
-    30000,
-  );
+  // List + badge dikelola useInbox: badge di-poll ringan, item baru di-merge
+  // inkremental (tidak mengganti seluruh list), dan dijeda saat membaca/ mengetik.
+  const inbox = useInbox(accountId);
   const accounts = useFetch<SocialAccount[]>(() => api.get('/social-accounts'));
 
+  // Jeda merge item-bar-baru sementara user membuka thread / mengetik balasan,
+  // supaya daftar tidak melompat saat sedang berkonsentrasi.
+  const isFocused = Boolean(selected) || replyText.trim().length > 0;
   useEffect(() => {
-    if (selected) {
-      const fresh = query.data?.items.find((i) => i.id === selected.id);
-      if (fresh) setSelected(fresh);
-    }
-  }, [query.data, selected]);
+    inbox.setPaused(isFocused);
+  }, [isFocused, inbox]);
 
   const sendReply = async (useAI = false) => {
     if (!selected) return;
@@ -116,7 +113,7 @@ export function Inbox() {
       await api.post(`/inbox/${selected.id}/reply`, { text: replyText, useAI });
       toast.success(useAI ? 'Balasan AI terkirim' : 'Balasan terkirim');
       setReplyText('');
-      query.refetch();
+      inbox.refetch();
     } catch (err) {
       toast.error('Gagal mengirim balasan', err instanceof Error ? err.message : 'Terjadi kesalahan');
     } finally {
@@ -127,7 +124,7 @@ export function Inbox() {
   const mark = async (item: InboxItem, nextStatus: string) => {
     await api.patch(`/inbox/${item.id}/status`, { status: nextStatus });
     toast.success('Status diperbarui');
-    query.refetch();
+    inbox.refetch();
   };
 
   const removeItem = async (item: InboxItem) => {
@@ -136,7 +133,7 @@ export function Inbox() {
       const res = await api.delete<{ ok: boolean; warning?: string }>(`/inbox/${item.id}`);
       toast.success('Komentar dihapus', res.warning);
       setSelected(null);
-      query.refetch();
+      inbox.refetch();
     } catch (err) {
       toast.error('Gagal menghapus', err instanceof Error ? err.message : 'Terjadi kesalahan');
     }
@@ -149,7 +146,7 @@ export function Inbox() {
       const res = await api.post<{ replyContent: string }>(`/inbox/${selected.id}/auto-reply`);
       toast.success('Balasan otomatis terkirim', res.replyContent ? 'Lihat hasilnya di bawah.' : undefined);
       setReplyText(res.replyContent ?? '');
-      query.refetch();
+      inbox.refetch();
     } catch (err) {
       toast.error('Gagal auto reply', err instanceof Error ? err.message : 'Terjadi kesalahan');
     } finally {
@@ -157,7 +154,7 @@ export function Inbox() {
     }
   };
 
-  const allItems = query.data?.items ?? [];
+  const allItems = inbox.items ?? [];
   // "Baru" = komentar terbaru yang masuk (termasuk yang sudah di-auto-reply),
   // hanya komentar yang diabaikan yang disembunyikan. Urut newest-first dari server.
   const filtered =
@@ -168,10 +165,10 @@ export function Inbox() {
         : allItems.filter((i) => i.status === status);
   // Tampilkan sebagai thread: komentar induk dengan balasannya tepat di bawah.
   const threads = buildThreads(filtered);
-  const counts = query.data?.counts ?? {};
+  const counts = inbox.counts ?? {};
   const countOf = (s: string) => {
-    if (s === 'all') return query.data?.total ?? allItems.length;
-    if (s === 'new') return (query.data?.total ?? allItems.length) - (counts.ignored ?? 0);
+    if (s === 'all') return inbox.total ?? allItems.length;
+    if (s === 'new') return (inbox.total ?? allItems.length) - (counts.ignored ?? 0);
     return counts[s] ?? allItems.filter((i) => i.status === s).length;
   };
   const selectedDetail = selected ?? threads[0]?.item ?? null;
@@ -183,7 +180,7 @@ export function Inbox() {
         title="Inbox"
         description="Semua komentar, DM, dan sebutan dari seluruh akun dalam satu tempat."
         action={
-          <Button variant="secondary" onClick={() => query.refetch()} icon={<RefreshCw className="h-4 w-4" />}>
+          <Button variant="secondary" onClick={() => inbox.refetch()} icon={<RefreshCw className="h-4 w-4" />}>
             Segarkan
           </Button>
         }
@@ -223,7 +220,7 @@ export function Inbox() {
             </select>
           </div>
 
-          {query.loading ? (
+          {inbox.loading ? (
             <PageLoader label="Memuat inbox..." />
           ) : filtered.length === 0 ? (
             <EmptyState

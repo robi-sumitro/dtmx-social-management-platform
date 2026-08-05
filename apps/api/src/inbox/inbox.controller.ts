@@ -18,6 +18,11 @@ import { CurrentUser } from '../common/decorators/auth.decorators';
 export class InboxController {
   constructor(private readonly inbox: InboxService) {}
 
+  @Get('counts')
+  counts(@CurrentUser('id') userId: string, @Query('accountId') accountId?: string) {
+    return this.inbox.counts(userId, accountId);
+  }
+
   @Get()
   list(
     @CurrentUser('id') userId: string,
@@ -25,12 +30,14 @@ export class InboxController {
     @Query('accountId') accountId?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('since') since?: string,
   ) {
     return this.inbox.list(userId, {
       status,
       accountId,
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 20,
+      since,
     });
   }
 

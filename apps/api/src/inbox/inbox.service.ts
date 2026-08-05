@@ -18,13 +18,22 @@ export class InboxService {
     private readonly quota: QuotaGuardService,
   ) {}
 
-  async list(userId: string, filters: { status?: string; accountId?: string; page?: number; limit?: number }) {
+  async list(
+    userId: string,
+    filters: { status?: string; accountId?: string; page?: number; limit?: number; since?: string },
+  ) {
     await this.flags.assertEnabled('inbox');
     const page = filters.page || 1;
     const limit = filters.limit || 20;
     const where: any = { userId };
     if (filters.status) where.status = filters.status;
     if (filters.accountId) where.accountId = filters.accountId;
+    // Incremental: hanya item yang lebih baru dari cursor (createdAt > since).
+    // Ditangani di sini agar loop client bisa menambah "baru" tanpa menarik ulang seluruh list.
+    if (filters.since) {
+      const since = new Date(filters.since);
+      if (!isNaN(since.getTime())) where.createdAt = { gt: since };
+    }
 
     // Counts are computed without the status filter so tab badges stay in sync
     // regardless of which tab is currently open.
@@ -46,11 +55,36 @@ export class InboxService {
         _count: { _all: true },
       }),
     ]);
+    const counts = this.buildCounts(statusGroups, total);
+    return { items, total, page, limit, counts };
+  }
+
+  /**
+   * Ringan — hanya total & jumlah per status. Dipakai polling badge agar tidak
+   * perlu menarik ulang list penuh setiap 30 detik.
+   */
+  async counts(userId: string, accountId?: string) {
+    await this.flags.assertEnabled('inbox');
+    const where: any = { userId };
+    if (accountId) where.accountId = accountId;
+
+    const [total, statusGroups] = await Promise.all([
+      this.prisma.inboxItem.count({ where }),
+      this.prisma.inboxItem.groupBy({
+        by: ['status'],
+        where,
+        _count: { _all: true },
+      }),
+    ]);
+    return { total, counts: this.buildCounts(statusGroups, total) };
+  }
+
+  private buildCounts(statusGroups: Array<{ status: string; _count: { _all: number } }>, total: number) {
     const counts: Record<string, number> = { all: total, new: 0, replied: 0, ignored: 0, queued: 0 };
     for (const g of statusGroups) {
       if (g.status in counts) counts[g.status] = g._count._all;
     }
-    return { items, total, page, limit, counts };
+    return counts;
   }
 
   async reply(userId: string, inboxId: string, text: string, useAI?: boolean) {

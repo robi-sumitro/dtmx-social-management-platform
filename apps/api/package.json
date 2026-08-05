@@ -11,6 +11,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
+    "prisma:deploy:heal": "ts-node prisma/heal-migrations.ts",
     "prisma:push": "prisma db push",
     "prisma:seed": "ts-node prisma/seed.ts",
     "prisma:seed:prod": "node dist/apps/api/prisma/seed.js",

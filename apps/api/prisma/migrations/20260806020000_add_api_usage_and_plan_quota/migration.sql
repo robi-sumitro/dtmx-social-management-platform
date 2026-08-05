@@ -16,4 +16,4 @@ CREATE TABLE IF NOT EXISTS "api_usage" (
 CREATE INDEX IF NOT EXISTS "api_usage_userId_idx" ON "api_usage"("userId");
 CREATE UNIQUE INDEX IF NOT EXISTS "api_usage_provider_day_userId_key" ON "api_usage"("provider", "day", "userId");
 CREATE INDEX IF NOT EXISTS "api_usage_provider_day_idx" ON "api_usage"("provider", "day");
-ALTER TABLE "api_usage" ADD CONSTRAINT "api_usage_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "api_usage" ADD CONSTRAINT IF NOT EXISTS "api_usage_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;

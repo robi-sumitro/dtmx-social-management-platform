@@ -17,7 +17,7 @@
     "node": ">=22.13.0"
   },
   "scripts": {
-    "start": "pnpm --filter @dtmx/api prisma:deploy && pnpm --filter @dtmx/api start:prod",
+    "start": "pnpm --filter @dtmx/api prisma:deploy:heal && pnpm --filter @dtmx/api start:prod",
     "build": "pnpm --filter @dtmx/api prisma:generate && pnpm -r build",
     "dev": "pnpm -r dev",
     "lint": "pnpm -r lint",

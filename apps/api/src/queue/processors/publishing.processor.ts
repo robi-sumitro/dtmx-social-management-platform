@@ -73,25 +73,43 @@ export class PublishingProcessor extends WorkerHost {
       }
     }
 
-    const finalStatus = published === 0 ? 'failed' : 'published';
+    // Jika sebagian akun berhasil dan sebagian gagal, tandai 'partial' — bukan
+    // 'published' — supaya kartu tidak bicara "Terbit" padahal ada yang gagal.
+    const finalStatus =
+      published === 0
+        ? 'failed'
+        : errors.length > 0
+          ? 'partial'
+          : 'published';
+
     await this.prisma.post.update({
       where: { id: postId },
       data: {
         status: finalStatus,
-        publishedAt: new Date(),
+        publishedAt: published > 0 ? new Date() : undefined,
         errorMessage: errors.length ? errors.join('; ') : null,
         retryCount: { increment: errors.length ? 1 : 0 },
       },
     });
 
+    const title =
+      finalStatus === 'published'
+        ? 'Postingan terbit'
+        : finalStatus === 'partial'
+          ? 'Sebagian postingan gagal'
+          : 'Postingan gagal diterbitkan';
+    const message =
+      finalStatus === 'published'
+        ? `"${post.caption?.slice(0, 80) || post.title || 'Postingan'}" berhasil diterbitkan ke ${published} platform.`
+        : finalStatus === 'partial'
+          ? `Diterbitkan ke ${published} platform, namun gagal di: ${errors.join('; ')}`
+          : errors.join('; ') || 'Terjadi kesalahan saat menerbitkan postingan.';
+
     await this.notifications.create({
       userId: post.userId,
       type: 'post',
-      title: finalStatus === 'published' ? 'Postingan terbit' : 'Postingan gagal diterbitkan',
-      message:
-        finalStatus === 'published'
-          ? `"${post.caption?.slice(0, 80) || post.title || 'Postingan'}" berhasil diterbitkan ke ${published} platform.`
-          : errors.join('; ') || 'Terjadi kesalahan saat menerbitkan postingan.',
+      title,
+      message,
       link: `/app/posts/${postId}`,
       data: { postId, status: finalStatus },
     });
@@ -99,6 +117,6 @@ export class PublishingProcessor extends WorkerHost {
     if (finalStatus === 'failed') {
       throw new Error(`Publishing failed: ${errors.join('; ')}`);
     }
-    return { ok: true, publishedTo: published, failed: errors.length };
+    return { ok: true, publishedTo: published, failed: errors.length, status: finalStatus };
   }
 }

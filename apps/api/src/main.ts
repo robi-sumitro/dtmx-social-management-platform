@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
+import axios from 'axios';
 import { AppModule } from './app.module';
 import { getAppBaseUrl, getFrontendUrl } from './common/app-url';
 
@@ -51,6 +52,26 @@ async function bootstrap() {
 
   app.enableShutdownHooks();
   app.setGlobalPrefix('api');
+
+  // Surface the real platform error (e.g. Meta Graph API `error.message`)
+  // instead of a generic "Request failed with status code 400". This keeps
+  // post/inbox/analytics failures actionable for the user.
+  axios.interceptors.response.use(
+    (res) => res,
+    (error) => {
+      if (axios.isAxiosError(error) && error.response) {
+        const body: any = error.response.data;
+        const platformMsg =
+          body?.error?.message ||
+          body?.message ||
+          (typeof body === 'string' ? body : undefined);
+        if (platformMsg) {
+          error.message = `${platformMsg} (HTTP ${error.response.status})`;
+        }
+      }
+      return Promise.reject(error);
+    },
+  );
 
   const port = config.get<number>('PORT', 3000);
   await app.listen(port);

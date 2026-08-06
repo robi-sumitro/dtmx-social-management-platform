@@ -56,11 +56,14 @@ export class FacebookProvider implements PlatformAdapter {
 
     if (ctx.kind === 'dm' && ctx.authorId) {
       // Messenger DM: POST /me/messages (me = page) with recipient PSID + text.
+      // messaging_type (RESPONSE) is REQUIRED by the Send API — omitting it
+      // makes Meta reject the call with HTTP 400.
       const { data } = await axios.post(
         `${GRAPH}/me/messages`,
         {
           recipient: { id: ctx.authorId },
           message: { text: ctx.text },
+          messaging_type: 'RESPONSE',
           access_token: account.accessToken!,
         },
       );

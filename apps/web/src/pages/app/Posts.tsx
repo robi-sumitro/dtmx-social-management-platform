@@ -16,7 +16,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { useToast } from '@/components/ui/Toast';
 
-type Filter = 'all' | 'draft' | 'scheduled' | 'published' | 'failed';
+type Filter = 'all' | 'draft' | 'scheduled' | 'published' | 'partial' | 'failed';
 type ViewMode = 'grid' | 'calendar';
 
 const FILTERS: { value: Filter; label: string }[] = [
@@ -24,6 +24,7 @@ const FILTERS: { value: Filter; label: string }[] = [
   { value: 'draft', label: 'Draft' },
   { value: 'scheduled', label: 'Terjadwal' },
   { value: 'published', label: 'Terbit' },
+  { value: 'partial', label: 'Sebagian Gagal' },
   { value: 'failed', label: 'Gagal' },
 ];
 
@@ -265,7 +266,7 @@ export function Posts() {
         title="Postingan"
         description="Kelola semua konten yang dibuat dan dijadwalkan."
         action={
-          <div className="flex items-center gap-3">
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap sm:gap-3">
             <Button
               variant="outline"
               size="sm"
@@ -291,8 +292,8 @@ export function Posts() {
                 Kalender
               </button>
             </div>
-            <Link to="/app/posts/new">
-              <Button icon={<Plus className="h-4 w-4" />}>Buat Postingan</Button>
+            <Link to="/app/posts/new" className="w-full sm:w-auto">
+              <Button className="w-full sm:w-auto" icon={<Plus className="h-4 w-4" />}>Buat Postingan</Button>
             </Link>
           </div>
         }
@@ -347,7 +348,7 @@ export function Posts() {
                         <div
                           key={p.id}
                           onClick={() => navigate(`/app/posts/${p.id}`)}
-                          className={cn('cursor-pointer truncate rounded px-1.5 py-0.5 text-[10px] font-medium text-white', meta.className.includes('amber') ? 'bg-amber-500' : meta.className.includes('emerald') ? 'bg-emerald-500' : 'bg-brand-600')}
+                          className={cn('cursor-pointer truncate rounded px-1.5 py-0.5 text-[10px] font-medium text-white', meta.className.includes('amber') ? 'bg-amber-500' : meta.className.includes('emerald') ? 'bg-emerald-500' : meta.className.includes('orange') ? 'bg-orange-500' : 'bg-brand-600')}
                           title={postTitle(p)}
                         >
                           {postTitle(p)}

@@ -100,6 +100,7 @@ export function postStatusMeta(status: string): { label: string; className: stri
     scheduled: { label: 'Terjadwal', className: 'bg-amber-50 text-amber-700 ring-amber-200', dot: 'bg-amber-500' },
     publishing: { label: 'Menerbitkan', className: 'bg-blue-50 text-blue-700 ring-blue-200', dot: 'bg-blue-500' },
     published: { label: 'Terbit', className: 'bg-emerald-50 text-emerald-700 ring-emerald-200', dot: 'bg-emerald-500' },
+    partial: { label: 'Sebagian Gagal', className: 'bg-orange-50 text-orange-700 ring-orange-200', dot: 'bg-orange-500' },
     failed: { label: 'Gagal', className: 'bg-rose-50 text-rose-700 ring-rose-200', dot: 'bg-rose-500' },
     cancelled: { label: 'Dibatalkan', className: 'bg-slate-100 text-slate-500 ring-slate-200', dot: 'bg-slate-400' },
     paused: { label: 'Dijeda', className: 'bg-orange-50 text-orange-700 ring-orange-200', dot: 'bg-orange-500' },

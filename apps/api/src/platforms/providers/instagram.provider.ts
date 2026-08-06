@@ -92,12 +92,15 @@ export class InstagramProvider implements PlatformAdapter {
     const igUserId = account.instagramId ?? account.platformId;
 
     if (ctx.kind === 'dm' && ctx.authorId) {
-      // DM: POST /{ig-id}/messages with recipient + text.
+      // DM: POST /{ig-id}/messages with recipient + text. messaging_type is a
+      // required field for the IG messaging send API (same contract as
+      // Messenger), otherwise Meta replies with HTTP 400.
       const { data } = await axios.post(
         `${GRAPH}/${igUserId}/messages`,
         {
           recipient: { id: ctx.authorId },
           message: { text: ctx.text },
+          messaging_type: 'RESPONSE',
           access_token: account.accessToken,
         },
       );

@@ -157,7 +157,7 @@ model Post {
   hashtags     String?
   platform     String?
   postType     String   @default("text")
-  status       String   @default("draft") // draft|scheduled|publishing|published|failed|cancelled|paused
+  status       String   @default("draft") // draft|scheduled|publishing|published|partial|failed|cancelled|paused
   scheduledAt  DateTime?
   publishedAt  DateTime?
   overrides    Json?

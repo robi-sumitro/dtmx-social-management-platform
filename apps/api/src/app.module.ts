@@ -60,6 +60,7 @@ import { AppController } from './app.controller';
           {
             rootPath: uploads,
             serveRoot: '/uploads',
+            renderPath: '/api/not-found',
             exclude: ['/api/(.*)'],
           },
         ];

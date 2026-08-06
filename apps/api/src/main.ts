@@ -55,18 +55,27 @@ async function bootstrap() {
 
   // Surface the real platform error (e.g. Meta Graph API `error.message`)
   // instead of a generic "Request failed with status code 400". This keeps
-  // post/inbox/analytics failures actionable for the user.
+  // post/inbox/analytics failures actionable for the user. Meta puts the
+  // human-readable reason in `error_user_msg`/`error_user_title` (plus the
+  // `error_subcode`) — without them an IG failure only says "Invalid
+  // parameter (HTTP 400)" and is impossible to diagnose.
   axios.interceptors.response.use(
     (res) => res,
     (error) => {
       if (axios.isAxiosError(error) && error.response) {
         const body: any = error.response.data;
+        const g = body?.error;
+        const userDetail = [g?.error_user_title, g?.error_user_msg]
+          .filter(Boolean)
+          .join(': ');
         const platformMsg =
-          body?.error?.message ||
+          userDetail ||
+          g?.message ||
           body?.message ||
           (typeof body === 'string' ? body : undefined);
+        const sub = g?.error_subcode ? ` (subcode ${g.error_subcode})` : '';
         if (platformMsg) {
-          error.message = `${platformMsg} (HTTP ${error.response.status})`;
+          error.message = `${platformMsg}${sub} (HTTP ${error.response.status})`;
         }
       }
       return Promise.reject(error);

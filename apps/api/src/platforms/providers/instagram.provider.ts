@@ -76,15 +76,16 @@ export class InstagramProvider implements PlatformAdapter {
       );
       remoteId = container.id;
     } else {
-      // media_type hanya diizinkan untuk CAROUSEL / STORIES / REELS. Untuk
-      // post feed biasa (IMAGE / VIDEO) kita TIDAK boleh mengirim media_type
-      // — Meta membalas "Invalid parameter (HTTP 400)" jika tetap dikirim.
+      // media_type TIDAK diizinkan untuk post feed gambar (IMAGE) — Meta
+      // membalas "Invalid parameter (HTTP 400)". Namun untuk VIDEO / REELS /
+      // CAROUSEL media_type justru WAJIB: tanpa media_type=VIDEO Meta
+      // menduga container itu gambar lalu menuntut image_url.
       const containerBody: Record<string, unknown> = {
         image_url: isVideo ? undefined : mediaUrls[0],
         video_url: isVideo ? mediaUrls[0] : undefined,
         ...base,
       };
-      if (mediaType === 'REELS') containerBody.media_type = mediaType;
+      if (mediaType === 'VIDEO' || mediaType === 'REELS') containerBody.media_type = mediaType;
       const { data: container } = await axios.post(
         `${GRAPH}/${igUserId}/media`,
         containerBody,

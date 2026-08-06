@@ -51,10 +51,29 @@ export class FacebookStrategy extends PassportStrategy(Strategy, 'facebook') {
       clientID: config.get<string>('FACEBOOK_APP_ID', ''),
       clientSecret: config.get<string>('FACEBOOK_APP_SECRET', ''),
       callbackURL,
-      // Minimal, always-available login permissions. `pages_show_list` (halaman)
-      // diminta lewat alur "hubungkan akun" terpisah, bukan saat login —
-      // menghindari penolakan dialog OAuth oleh Meta untuk app yang belum review.
-      scope: ['email', 'public_profile'],
+      // Scope login mencakup seluruh kebutuhan platform: identitas (email,
+      // public_profile), deteksi otomatis halaman + IG saat login
+      // (pages_show_list), post halaman FB & IG (pages_manage_posts,
+      // instagram_content_publish), inbox komentar FB/IG
+      // (pages_read_engagement, instagram_manage_comments/engagement) dan
+      // DM/Messenger (pages_messaging, pages_manage_metadata, instagram_manage_messages).
+      // pages_show_list/pages_* & instagram_* adalah Standard Access (dev) yang
+      // agar aman di produksi sebaiknya di-Review/Advanced Access di Meta dashboard.
+      scope: [
+        'email',
+        'public_profile',
+        'pages_show_list',
+        'pages_manage_posts',
+        'pages_read_engagement',
+        'pages_read_user_content',
+        'pages_manage_metadata',
+        'pages_messaging',
+        'instagram_basic',
+        'instagram_manage_comments',
+        'instagram_manage_messages',
+        'instagram_manage_engagement',
+        'instagram_content_publish',
+      ],
       profileFields: ['id', 'emails', 'name', 'displayName', 'photos'],
       graphAPIVersion: 'v24.0',
       // Stateless signed `state` (no express-session) — keeps CSRF protection

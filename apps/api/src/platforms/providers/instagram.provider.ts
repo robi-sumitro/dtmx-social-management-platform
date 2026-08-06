@@ -31,20 +31,16 @@ export class InstagramProvider implements PlatformAdapter {
     const images = post.media.filter((m) => m.mimeType?.startsWith('image/'));
     const video = post.media.find((m) => m.mimeType?.startsWith('video/'));
 
-    // short_video = Reels (media_type REELS). Anything else falls back to the
-    // standard container logic (IMAGE / VIDEO / CAROUSEL).
-    const isReel = post.postType === 'short_video' && Boolean(video);
-
-    let mediaType: 'IMAGE' | 'VIDEO' | 'REELS' | 'CAROUSEL' = 'IMAGE';
+    // Semua video dipublish sebagai REELS. Meta telah menonaktifkan
+    // `media_type: VIDEO` (error subcode 2207067): untuk video feed pun kini
+    // wajib memakai `media_type: REELS` (dengan share_to_feed=true agar tetap
+    // muncul di Feed). Gambar tetap memakai container IMAGE biasa.
+    let mediaType: 'IMAGE' | 'REELS' | 'CAROUSEL' = 'IMAGE';
     let mediaUrls: string[] = [];
     let isVideo = false;
 
-    if (isReel) {
+    if (video) {
       mediaType = 'REELS';
-      isVideo = true;
-      mediaUrls = [`${post.mediaBaseUrl}/${video!.filename}`];
-    } else if (video) {
-      mediaType = 'VIDEO';
       isVideo = true;
       mediaUrls = [`${post.mediaBaseUrl}/${video.filename}`];
     } else if (images.length > 1) {
@@ -85,7 +81,7 @@ export class InstagramProvider implements PlatformAdapter {
         video_url: isVideo ? mediaUrls[0] : undefined,
         ...base,
       };
-      if (mediaType === 'VIDEO' || mediaType === 'REELS') containerBody.media_type = mediaType;
+      if (mediaType === 'REELS') containerBody.media_type = mediaType;
       const { data: container } = await axios.post(
         `${GRAPH}/${igUserId}/media`,
         containerBody,

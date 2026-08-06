@@ -72,6 +72,8 @@ export function PostComposer() {
   const [aiLoading, setAiLoading] = useState(false);
   const [uploadingMedia, setUploadingMedia] = useState(false);
   const mediaInputRef = useRef<HTMLInputElement>(null);
+  // User explicitly picked a post type → don't let auto-detect override it.
+  const postTypeTouched = useRef(false);
 
   useEffect(() => {
     if (!post) return;
@@ -82,6 +84,8 @@ export function PostComposer() {
     setAccountIds((post.accounts ?? []).map((pa) => pa.accountId));
     setMediaIds((post.media ?? []).map((pm) => pm.mediaId));
     setScheduledAt(post.scheduledAt ? toLocalInputValue(post.scheduledAt) : '');
+    // Keep the saved type for edits; auto-detect only applies to new posts.
+    postTypeTouched.current = true;
   }, [post]);
 
   const activeAccounts = useMemo(() => (accounts ?? []).filter((a) => a.isActive), [accounts]);
@@ -101,6 +105,30 @@ export function PostComposer() {
       setPostType(allowedPostTypes[0]);
     }
   }, [allowedPostTypes, postType]);
+
+  // Auto-detect post type from selected media when the user hasn't chosen one.
+  useEffect(() => {
+    if (postTypeTouched.current) return;
+    const selected = mediaItems.filter((m) => mediaIds.includes(m.id));
+    const hasVideo = selected.some((m) => m.fileType === 'video');
+    const imageCount = selected.filter((m) => m.fileType === 'image').length;
+    let guess: string | null = null;
+    if (hasVideo) {
+      guess = allowedPostTypes.includes('short_video')
+        ? 'short_video'
+        : allowedPostTypes.includes('video')
+          ? 'video'
+          : null;
+    } else if (imageCount > 1) {
+      guess = allowedPostTypes.includes('carousel') ? 'carousel' : null;
+    } else if (imageCount === 1) {
+      guess = allowedPostTypes.includes('image') ? 'image' : null;
+    } else {
+      guess = allowedPostTypes.includes('text') ? 'text' : null;
+    }
+    if (guess && guess !== postType) setPostType(guess);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mediaIds, media, allowedPostTypes, postType]);
 
   const toggleAccount = (id: string) =>
     setAccountIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -286,7 +314,10 @@ export function PostComposer() {
                 <Select
                   label="Jenis Konten"
                   value={postType}
-                  onChange={(e) => setPostType(e.target.value)}
+                  onChange={(e) => {
+                    postTypeTouched.current = true;
+                    setPostType(e.target.value);
+                  }}
                   hint={selectedProviders.length === 0 ? 'Pilih akun tujuan untuk menampilkan jenis konten yang didukung.' : undefined}
                 >
                   {POST_TYPES.filter((t) => allowedPostTypes.includes(t.value)).map((t) => (

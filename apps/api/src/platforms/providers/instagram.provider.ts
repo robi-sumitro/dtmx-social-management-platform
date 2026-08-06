@@ -31,11 +31,19 @@ export class InstagramProvider implements PlatformAdapter {
     const images = post.media.filter((m) => m.mimeType?.startsWith('image/'));
     const video = post.media.find((m) => m.mimeType?.startsWith('video/'));
 
-    let mediaType: 'IMAGE' | 'VIDEO' | 'CAROUSEL' = 'IMAGE';
+    // short_video = Reels (media_type REELS). Anything else falls back to the
+    // standard container logic (IMAGE / VIDEO / CAROUSEL).
+    const isReel = post.postType === 'short_video' && Boolean(video);
+
+    let mediaType: 'IMAGE' | 'VIDEO' | 'REELS' | 'CAROUSEL' = 'IMAGE';
     let mediaUrls: string[] = [];
     let isVideo = false;
 
-    if (video) {
+    if (isReel) {
+      mediaType = 'REELS';
+      isVideo = true;
+      mediaUrls = [`${post.mediaBaseUrl}/${video!.filename}`];
+    } else if (video) {
       mediaType = 'VIDEO';
       isVideo = true;
       mediaUrls = [`${post.mediaBaseUrl}/${video.filename}`];
@@ -48,7 +56,8 @@ export class InstagramProvider implements PlatformAdapter {
       throw new Error('Instagram: posting wajib berisi media (gambar/video)');
     }
 
-    const base = { access_token: token, caption };
+    const base: Record<string, unknown> = { access_token: token, caption };
+    if (mediaType === 'REELS') base.share_to_feed = 'true';
 
     let remoteId: string;
 

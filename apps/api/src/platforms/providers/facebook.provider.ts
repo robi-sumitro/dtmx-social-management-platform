@@ -40,7 +40,53 @@ export class FacebookProvider implements PlatformAdapter {
     const pageId = account.platformId;
     const tokenParam = { access_token: token };
 
-    const image = post.media.find((m) => m.mimeType?.startsWith('image/') || m.fileType === 'image');
+    const images = post.media.filter((m) => m.mimeType?.startsWith('image/') || m.fileType === 'image');
+    const video = post.media.find((m) => m.mimeType?.startsWith('video/') || m.fileType === 'video');
+
+    // Reels: two-phase upload via /{page-id}/video_reels.
+    if (post.postType === 'short_video') {
+      if (!video) throw new Error('Facebook Reels: posting wajib berisi video');
+      return this.publishReel(account, post, video, pageId, token);
+    }
+
+    // Regular video post via /{page-id}/videos with file_url (URL-based upload).
+    if (post.postType === 'video') {
+      if (!video) throw new Error('Facebook video: posting wajib berisi video');
+      const { data } = await axios.post(`${GRAPH}/${pageId}/videos`, null, {
+        params: {
+          file_url: `${post.mediaBaseUrl}/${video.filename}`,
+          description: this.messageOf(post),
+          ...tokenParam,
+        },
+      });
+      this.logger.log(`Facebook video created: ${data.id}`);
+      return { ok: true, remoteId: data.id };
+    }
+
+    // Carousel: create each photo unpublished, then attach them to a feed post.
+    if (post.postType === 'carousel' && images.length > 1) {
+      const mediaFbids: string[] = [];
+      for (const image of images) {
+        const { data } = await axios.post(`${GRAPH}/${pageId}/photos`, null, {
+          params: { url: `${post.mediaBaseUrl}/${image.filename}`, published: 'false', ...tokenParam },
+        });
+        if (data?.id) mediaFbids.push(data.id);
+      }
+      if (mediaFbids.length > 0) {
+        const { data } = await axios.post(`${GRAPH}/${pageId}/feed`, null, {
+          params: {
+            message: this.messageOf(post),
+            attached_media: JSON.stringify(mediaFbids.map((id) => ({ media_fbid: id }))),
+            ...tokenParam,
+          },
+        });
+        this.logger.log(`Facebook carousel created: ${data.id}`);
+        return { ok: true, remoteId: data.id };
+      }
+    }
+
+    // Single image or text-only feed post.
+    const image = images[0];
     const payload: Record<string, string> = image
       ? { url: `${post.mediaBaseUrl}/${image.filename}`, caption: this.messageOf(post), ...tokenParam }
       : { message: this.messageOf(post), ...tokenParam };
@@ -49,6 +95,58 @@ export class FacebookProvider implements PlatformAdapter {
     const { data } = await axios.post(`${GRAPH}/${node}`, null, { params: payload });
     this.logger.log(`Facebook post created: ${data.id}`);
     return { ok: true, remoteId: data.id };
+  }
+
+  /**
+   * Publish a Reel to a Facebook Page.
+   * Flow: (1) POST /{page-id}/video_reels?upload_phase=start → get video_id +
+   * upload_url; (2) upload the video file to the rupload URL; (3) POST
+   * /{page-id}/video_reels?upload_phase=finish to publish. Needs
+   * pages_manage_posts + pages_read_engagement + pages_show_list.
+   */
+  private async publishReel(
+    account: SocialAccount,
+    post: PublishContext,
+    video: { filename: string },
+    pageId: string,
+    token: string,
+  ): Promise<PlatformResult> {
+    // Phase 1: initialize the upload session.
+    const { data: init } = await axios.post(`${GRAPH}/${pageId}/video_reels`, null, {
+      params: { upload_phase: 'start', access_token: token },
+    });
+    const videoId = init?.video_id;
+    const uploadUrl = init?.upload_url;
+    if (!videoId || !uploadUrl) {
+      throw new Error(`Facebook Reels: gagal memulai sesi unggah (${init?.message || 'tanpa video_id'})`);
+    }
+
+    // Phase 2: upload the video (URL-based, so no binary streaming needed).
+    const uploadRes = await axios.post(uploadUrl, null, {
+      headers: {
+        Authorization: `OAuth ${token}`,
+        'file_url': `${post.mediaBaseUrl}/${video.filename}`,
+      },
+    });
+    if (!uploadRes.data?.success) {
+      throw new Error(`Facebook Reels: unggah video gagal (${uploadRes.data?.message || 'status tidak sukses'})`);
+    }
+
+    // Phase 3: finish the upload and publish the Reel.
+    const { data: fin } = await axios.post(`${GRAPH}/${pageId}/video_reels`, null, {
+      params: {
+        upload_phase: 'finish',
+        video_id: videoId,
+        video_state: 'PUBLISHED',
+        description: this.messageOf(post),
+        access_token: token,
+      },
+    });
+    if (!fin?.success) {
+      throw new Error(`Facebook Reels: publikasi ditolak (${fin?.message || 'tidak ada konfirmasi'})`);
+    }
+    this.logger.log(`Facebook Reel published: ${fin.post_id || videoId}`);
+    return { ok: true, remoteId: fin.post_id ?? videoId };
   }
 
   async reply(account: SocialAccount, ctx: ReplyContext): Promise<PlatformResult> {

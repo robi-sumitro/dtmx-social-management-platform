@@ -10,7 +10,6 @@ import {
   Image as ImageIcon,
   Loader2,
   Wand2,
-  Hash,
   UploadCloud,
   GripVertical,
   ChevronUp,
@@ -107,7 +106,6 @@ export function PostComposer() {
 
   const [title, setTitle] = useState('');
   const [caption, setCaption] = useState('');
-  const [hashtags, setHashtags] = useState('');
   const [postType, setPostType] = useState('image');
   const [accountIds, setAccountIds] = useState<string[]>([]);
   const [mediaIds, setMediaIds] = useState<string[]>([]);
@@ -142,7 +140,6 @@ export function PostComposer() {
     initializing.current = true;
     setTitle(post.title ?? '');
     setCaption(post.caption ?? '');
-    setHashtags(post.hashtags ?? '');
     setPostType(post.postType);
     setAccountIds((post.accounts ?? []).map((pa) => pa.accountId));
     setMediaIds((post.media ?? []).map((pm) => pm.mediaId));
@@ -161,7 +158,7 @@ export function PostComposer() {
     () => mediaIds.map((id) => mediaItems.find((m) => m.id === id)).filter((m): m is MediaFile => Boolean(m)),
     [mediaIds, mediaItems],
   );
-  const totalLength = caption.length + hashtags.length;
+  const totalLength = caption.length;
 
   const selectedProviders = activeAccounts.filter((a) => accountIds.includes(a.id)).map((a) => a.provider);
   const allowedPostTypes = useMemo(() => {
@@ -303,29 +300,6 @@ export function PostComposer() {
     }
   };
 
-  const generateHashtags = async () => {
-    if (!aiPrompt.trim()) return;
-    setAiLoading(true);
-    try {
-      const res = await api.post<{ content: string }>('/ai/generate', {
-        prompt: `Buatkan 5-10 hashtag populer dan relevan untuk prompt konten ini: "${aiPrompt}". Jawab hanya daftar hashtag dipisah spasi. Bahasa: Indonesia.`,
-        feature: 'content_writer',
-      });
-      const tags = (res.content ?? '')
-        .split(/\s+/)
-        .filter((t) => t.startsWith('#'))
-        .slice(0, 12)
-        .join(' ');
-      setHashtags(tags || '');
-      markDirty();
-      toast.success('Hashtag dibuat AI', 'Hashtag disarankan, kamu bisa edit.');
-    } catch (err) {
-      toast.error('Gagal generate AI', err instanceof Error ? err.message : 'Terjadi kesalahan');
-    } finally {
-      setAiLoading(false);
-    }
-  };
-
   const submit = async (actionValue: 'draft' | 'schedule' | 'publish_now') => {
     if (!caption.trim() && postType === 'text') {
       toast.warning('Caption kosong', 'Tulis caption atau gunakan AI untuk membantu.');
@@ -359,7 +333,6 @@ export function PostComposer() {
       const payload = {
         title,
         caption,
-        hashtags,
         postType,
         accountIds,
         mediaIds,
@@ -414,25 +387,21 @@ export function PostComposer() {
               description="Tulis ide, AI akan menyusun caption lengkap dengan hashtag."
             />
             <CardBody>
-              <div className="flex flex-col gap-2.5 sm:flex-row">
-                <Input
-                  placeholder="Contoh: promo produk skincare untuk influencer..."
+              <div className="flex flex-col gap-2.5">
+                <Textarea
+                  rows={3}
+                  placeholder="Tulis ide/konten kamu di sini..."
                   value={aiPrompt}
                   onChange={(e) => setAiPrompt(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && void generateAI()}
+                  className="resize-none"
                 />
-                <div className="flex gap-2.5">
-                  <Button
-                    onClick={() => void generateAI()}
-                    loading={aiLoading}
-                    icon={!aiLoading ? <Sparkles className="h-4 w-4" /> : undefined}
-                  >
-                    Caption
-                  </Button>
-                  <Button variant="secondary" onClick={() => void generateHashtags()} disabled={aiLoading} icon={!aiLoading ? <Hash className="h-4 w-4" /> : undefined}>
-                    Hashtag
-                  </Button>
-                </div>
+                <Button
+                  onClick={() => void generateAI()}
+                  loading={aiLoading}
+                  icon={!aiLoading ? <Sparkles className="h-4 w-4" /> : undefined}
+                >
+                  Generate Caption
+                </Button>
               </div>
             </CardBody>
           </Card>
@@ -475,21 +444,6 @@ export function PostComposer() {
                     Melebihi batas {captionLimit} karakter untuk {selectedProviders.join(', ') || 'platform'} yang dipilih.
                   </p>
                 )}
-              </div>
-
-              <div>
-                <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-slate-700">
-                  <Hash className="h-4 w-4" />
-                  Hashtags
-                </label>
-                <Input
-                  placeholder="#skincare #beauty #review"
-                  value={hashtags}
-                  onChange={(e) => {
-                    markDirty();
-                    setHashtags(e.target.value);
-                  }}
-                />
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
@@ -678,7 +632,6 @@ export function PostComposer() {
                 <p className={cn('whitespace-pre-wrap text-sm leading-relaxed text-slate-800', captionMeta.captionClamp)}>
                   {caption || 'Tulis caption untuk melihat pratinjau...'}
                 </p>
-                {hashtags && <p className="mt-2 text-xs font-medium text-brand-600">{hashtags}</p>}
 
                 {orderedSelectedMedia.length > 0 && (
                   <div className="mt-3">

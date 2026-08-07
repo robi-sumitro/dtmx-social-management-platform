@@ -138,6 +138,7 @@ export class InstagramProvider implements PlatformAdapter {
     const effective = Number.isFinite(raw) && raw > 0 ? raw : 300_000;
     const deadline = Date.now() + effective;
     let lastSeen = '';
+    let unknownStreak = 0;
     while (Date.now() < deadline) {
       try {
         const { data } = await axios.get(`${GRAPH}/${containerId}`, {
@@ -145,18 +146,52 @@ export class InstagramProvider implements PlatformAdapter {
         });
         const status = data?.status_code;
         if (status === 'FINISHED' || status === 'PUBLISHED') return;
-        if (status !== lastSeen) {
-          this.logger.log(`Instagram container ${containerId} status: ${status ?? 'unknown'}`);
-          lastSeen = status ?? '';
-        }
         if (status === 'ERROR') {
           const msg = data?.error?.message ?? 'unknown status_code ERROR';
           throw new Error(`Instagram container failed to process media: ${msg}`);
         }
+        if (!status) {
+          unknownStreak += 1;
+          if (unknownStreak <= 3) {
+            this.logger.warn(
+              `Instagram container ${containerId} menanggapi tanpa status_code. Respon: ${JSON.stringify(data)}`,
+            );
+          }
+          if (unknownStreak >= 15) {
+            throw new Error(
+              `Instagram: container ${containerId} tidak mengekspos status_code. Respon: ${JSON.stringify(data)}`,
+            );
+          }
+        } else {
+          unknownStreak = 0;
+          if (status !== lastSeen) {
+            this.logger.log(`Instagram container ${containerId} status: ${status}`);
+            lastSeen = status;
+          }
+        }
       } catch (err: any) {
-        // Transient Graph errors (network blip, status not yet available).
-        const isHard = err?.response && err?.response?.status !== 400;
-        if (isHard) throw err;
+        const httpStatus = err?.response?.status;
+        const g = err?.response?.data?.error;
+        const sub = g?.error_subcode;
+        const msg = g?.message || (err?.message ?? String(err));
+        // Jeda publish yang masih aman: "media belum siap" — terus tunggu.
+        const notReady = httpStatus === 400 && (sub === 2207027 || /not ready/i.test(msg));
+        const transient =
+          !err?.response || // network/axios blip tanpa respon
+          httpStatus === 429 ||
+          (httpStatus >= 500 && httpStatus <= 599);
+        if (notReady) {
+          if (lastSeen !== 'not-ready') {
+            this.logger.log(`Instagram container ${containerId} masih memproses media...`);
+            lastSeen = 'not-ready';
+          }
+        } else if (!transient) {
+          // Error keras (400/403 lainnya, object tak ketemu, bogus token...).
+          // Jangan diam-diam mengulang sampai timeout — munculkan pesannya.
+          throw new Error(`Instagram container status gagal dibaca (HTTP ${httpStatus || '?'}): ${msg}`);
+        } else {
+          this.logger.warn(`Instagram container ${containerId} poll gagal sementara: ${msg}`);
+        }
       }
       await new Promise((r) => setTimeout(r, intervalMs));
     }

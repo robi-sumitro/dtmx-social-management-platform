@@ -3,7 +3,6 @@ import {
   UploadCloud,
   Image as ImageIcon,
   Trash2,
-  Film,
   FileText,
   Link2,
   Copy,
@@ -75,10 +74,11 @@ function MediaPreview({ file, onUpdated }: { file: MediaFile; onUpdated: () => v
               {file.thumbnail ? (
                 <img src={mediaUrl(file.thumbnail)} alt={file.originalName} className="h-full w-full object-cover" loading="lazy" />
               ) : (
-                <div className="flex h-full w-full flex-col items-center justify-center gap-1.5">
-                  <Film className="h-10 w-10 text-slate-500" />
-                  <span className="text-xs text-slate-500">Video</span>
-                </div>
+                // No persisted thumbnail yet: show the video's own first frame
+                // (a muted <video>) so the card always previews the clip, just
+                // like PostComposer does. A real JPG is still baked in when the
+                // user taps "Buat thumbnail".
+                <video src={url} muted playsInline preload="metadata" className="h-full w-full object-cover" onError={(e) => ((e.target as HTMLVideoElement).style.display = 'none')} />
               )}
               <span className="absolute bottom-2 right-2 flex items-center gap-1 rounded-md bg-black/60 px-2 py-0.5 text-[10px] font-medium text-white">
                 <Play className="h-3 w-3" />
@@ -182,7 +182,16 @@ export function Media() {
         if (!file) continue;
         try {
           const thumb = await extractVideoThumbnail(file);
-          if (!thumb) continue;
+          if (!thumb) {
+            // Browser could not decode/frame the video — try the server's ffmpeg
+            // so a thumbnail is still attached automatically.
+            try {
+              await api.post(`/media/${item.id}/thumbnail`);
+            } catch {
+              /* no server ffmpeg either */
+            }
+            continue;
+          }
           const thumbData = new FormData();
           thumbData.append('thumbnail', thumb, 'thumb.jpg');
           await api.upload(`/media/${item.id}/thumbnail-upload`, thumbData);

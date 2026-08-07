@@ -123,23 +123,32 @@ export class InstagramProvider implements PlatformAdapter {
    * Poll `GET /{ig-user-id}/media/{containerId}?fields=status_code` until the
    * container returns status FINISHED. Meta requires waiting for this before
    * calling media_publish, otherwise it answers HTTP 400 / subcode 2207027.
-   * Throws after a generous timeout so the caller surfaces a readable error.
+   * REELS/VIDEO transcoding from an image_url/video_url can be slow, so the
+   * default wait is generous (5 min). Throws after timing out so the caller
+   * surfaces a readable error.
    */
   private async waitUntilReady(
     igUserId: string,
     containerId: string,
     token: string,
-    timeoutMs = 120_000,
-    intervalMs = 3000,
+    timeoutMs: number | undefined = undefined,
+    intervalMs = 4000,
   ): Promise<void> {
-    const deadline = Date.now() + timeoutMs;
+    const raw = timeoutMs ?? Number(process.env.IG_READY_TIMEOUT_MS ?? 300_000);
+    const effective = Number.isFinite(raw) && raw > 0 ? raw : 300_000;
+    const deadline = Date.now() + effective;
+    let lastSeen = '';
     while (Date.now() < deadline) {
       try {
         const { data } = await axios.get(`${GRAPH}/${containerId}`, {
           params: { access_token: token, fields: 'status_code,error' },
         });
         const status = data?.status_code;
-        if (status === 'FINISHED') return;
+        if (status === 'FINISHED' || status === 'PUBLISHED') return;
+        if (status !== lastSeen) {
+          this.logger.log(`Instagram container ${containerId} status: ${status ?? 'unknown'}`);
+          lastSeen = status ?? '';
+        }
         if (status === 'ERROR') {
           const msg = data?.error?.message ?? 'unknown status_code ERROR';
           throw new Error(`Instagram container failed to process media: ${msg}`);
@@ -152,7 +161,7 @@ export class InstagramProvider implements PlatformAdapter {
       await new Promise((r) => setTimeout(r, intervalMs));
     }
     throw new Error(
-      `Instagram: media tidak siap publishing setelah ${Math.round(timeoutMs / 1000)}s (container ${containerId})`,
+      `Instagram: media tidak siap publishing setelah ${Math.round(effective / 1000)}s (container ${containerId}, status terakhir: ${lastSeen || 'unknown'})`,
     );
   }
 

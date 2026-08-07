@@ -151,7 +151,16 @@ export function PostComposer() {
         if (!file) continue;
         try {
           const thumb = await extractVideoThumbnail(file);
-          if (!thumb) continue;
+          if (!thumb) {
+            // Browser couldn't frame the video — fall back to server ffmpeg so
+            // the thumbnail is attached automatically.
+            try {
+              await api.post(`/media/${item.id}/thumbnail`);
+            } catch {
+              /* no server ffmpeg either */
+            }
+            continue;
+          }
           const thumbData = new FormData();
           thumbData.append('thumbnail', thumb, 'thumb.jpg');
           await api.upload(`/media/${item.id}/thumbnail-upload`, thumbData);

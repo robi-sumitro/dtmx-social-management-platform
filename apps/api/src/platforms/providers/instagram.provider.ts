@@ -89,12 +89,71 @@ export class InstagramProvider implements PlatformAdapter {
       remoteId = container.id;
     }
 
-    const { data: published } = await axios.post(
-      `${GRAPH}/${igUserId}/media_publish`,
-      { creation_id: remoteId, access_token: token },
-    );
+    // Media container may still be processing (transcoding/upload), so poll its
+    // status until FINISHED before publishing. Otherwise Meta replies with HTTP
+    // 400 + subcode 2207027 ("media is not ready for publishing").
+    await this.waitUntilReady(igUserId, remoteId, token);
+
+    // Publish the prepared container the media, with a short retry for the
+    // transient "not ready yet" (subcode 2207027) error.
+    let published;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const { data } = await axios.post(
+          `${GRAPH}/${igUserId}/media_publish`,
+          { creation_id: remoteId, access_token: token },
+        );
+        published = data;
+        break;
+      } catch (err: any) {
+        const subcode = err?.response?.data?.error?.error_subcode;
+        const isNotReady = err?.response?.status === 400 && subcode === 2207027;
+        if (!isNotReady || attempt === 2) throw err;
+        this.logger.warn(
+          `Instagram media not ready on publish (attempt ${attempt + 1}/3), retrying in 3s...`,
+        );
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+    }
     this.logger.log(`Instagram post published: ${published.id}`);
     return { ok: true, remoteId: published.id };
+  }
+
+  /**
+   * Poll `GET /{ig-user-id}/media/{containerId}?fields=status_code` until the
+   * container returns status FINISHED. Meta requires waiting for this before
+   * calling media_publish, otherwise it answers HTTP 400 / subcode 2207027.
+   * Throws after a generous timeout so the caller surfaces a readable error.
+   */
+  private async waitUntilReady(
+    igUserId: string,
+    containerId: string,
+    token: string,
+    timeoutMs = 120_000,
+    intervalMs = 3000,
+  ): Promise<void> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      try {
+        const { data } = await axios.get(`${GRAPH}/${containerId}`, {
+          params: { access_token: token, fields: 'status_code,error' },
+        });
+        const status = data?.status_code;
+        if (status === 'FINISHED') return;
+        if (status === 'ERROR') {
+          const msg = data?.error?.message ?? 'unknown status_code ERROR';
+          throw new Error(`Instagram container failed to process media: ${msg}`);
+        }
+      } catch (err: any) {
+        // Transient Graph errors (network blip, status not yet available).
+        const isHard = err?.response && err?.response?.status !== 400;
+        if (isHard) throw err;
+      }
+      await new Promise((r) => setTimeout(r, intervalMs));
+    }
+    throw new Error(
+      `Instagram: media tidak siap publishing setelah ${Math.round(timeoutMs / 1000)}s (container ${containerId})`,
+    );
   }
 
   async reply(account: SocialAccount, ctx: ReplyContext): Promise<PlatformResult> {

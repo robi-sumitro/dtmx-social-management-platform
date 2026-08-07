@@ -19,8 +19,6 @@ const CONNECT_SCOPES: Record<string, string> = {
     'pages_show_list',
     'pages_manage_posts',
     'pages_read_engagement',
-    // Publish video / Reels ke Halaman Facebook
-    'pages_video_upload',
     // Inbox: komentar FB, komentar & DM Instagram (butuh App Mode Live + Advanced Access)
     'pages_read_user_content',
     'pages_manage_metadata',

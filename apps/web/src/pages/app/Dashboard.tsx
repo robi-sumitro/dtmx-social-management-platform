@@ -11,6 +11,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import { useFlags } from '@/lib/flags';
 import { useFetch } from '@/lib/useApi';
 import { api } from '@/lib/api';
 import type { SocialAccount, Post, UsageResponse, AiStatus, InboxListResponse, AnalyticsSummary } from '@/lib/types';
@@ -31,6 +32,8 @@ function formatCompact(value: number): string {
 
 export function Dashboard() {
   const { user } = useAuth();
+  const { isEnabled } = useFlags();
+  const analyticsEnabled = isEnabled('analytics');
   const firstName = (user?.fullName || user?.username || '')?.split(' ')[0];
 
   const accounts = useFetch<SocialAccount[]>(() => api.get('/social-accounts'));
@@ -38,7 +41,10 @@ export function Dashboard() {
   const aiStatus = useFetch<AiStatus>(() => api.get('/ai/status'));
   const posts = useFetch<Post[]>(() => api.get('/posts'));
   const inbox = useFetch<InboxListResponse>(() => api.get('/inbox?limit=1'));
-  const analytics = useFetch<AnalyticsSummary>(() => api.get('/analytics/summary'));
+  const analytics = useFetch<AnalyticsSummary | null>(() => {
+    if (!isEnabled('analytics')) return Promise.resolve(null);
+    return api.get('/analytics/summary');
+  }, [isEnabled]);
 
   const activeAccounts = accounts.data?.filter((a) => a.isActive) ?? [];
   const scheduledCount = posts.data?.filter((p) => p.status === 'scheduled').length ?? 0;
@@ -67,36 +73,48 @@ export function Dashboard() {
         </Link>
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          label="Total Jangkauan (Reach)"
-          value={stats ? formatCompact(stats.reach) : '—'}
-          hint={stats ? `${stats.byAccount.length} akun · 30 hari terakhir` : analytics.loading ? 'Memuat data...' : 'Hubungkan akun untuk melihat data'}
-          icon={<TrendingUp className="h-5 w-5" />}
-          accent="brand"
-        />
-        <StatCard
-          label="Engagement Rate"
-          value={stats ? `${stats.engagementRate.toFixed(1)}%` : '—'}
-          hint={stats ? 'Rata-rata interaksi post' : analytics.loading ? 'Memuat data...' : 'Belum ada data'}
-          icon={<Share2 className="h-5 w-5" />}
-          accent="emerald"
-        />
-        <StatCard
-          label="Total Klik Tautan"
-          value={stats ? formatCompact(stats.linkClicks) : '—'}
-          hint={stats ? `Dari ${stats.publishedPosts} postingan terbit` : analytics.loading ? 'Memuat data...' : 'Belum ada data'}
-          icon={<ArrowUpRight className="h-5 w-5" />}
-          accent="amber"
-        />
-        <StatCard
-          label="Inbox Baru"
-          value={newInbox}
-          hint={newInbox ? 'Menunggu respon' : 'Semua beres ✓'}
-          icon={<Inbox className="h-5 w-5" />}
-          accent="rose"
-        />
-      </div>
+      {analyticsEnabled ? (
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            label="Total Jangkauan (Reach)"
+            value={stats ? formatCompact(stats.reach) : '—'}
+            hint={stats ? `${stats.byAccount.length} akun · 30 hari terakhir` : analytics.loading ? 'Memuat data...' : 'Hubungkan akun untuk melihat data'}
+            icon={<TrendingUp className="h-5 w-5" />}
+            accent="brand"
+          />
+          <StatCard
+            label="Engagement Rate"
+            value={stats ? `${stats.engagementRate.toFixed(1)}%` : '—'}
+            hint={stats ? 'Rata-rata interaksi post' : analytics.loading ? 'Memuat data...' : 'Belum ada data'}
+            icon={<Share2 className="h-5 w-5" />}
+            accent="emerald"
+          />
+          <StatCard
+            label="Total Klik Tautan"
+            value={stats ? formatCompact(stats.linkClicks) : '—'}
+            hint={stats ? `Dari ${stats.publishedPosts} postingan terbit` : analytics.loading ? 'Memuat data...' : 'Belum ada data'}
+            icon={<ArrowUpRight className="h-5 w-5" />}
+            accent="amber"
+          />
+          <StatCard
+            label="Inbox Baru"
+            value={newInbox}
+            hint={newInbox ? 'Menunggu respon' : 'Semua beres ✓'}
+            icon={<Inbox className="h-5 w-5" />}
+            accent="rose"
+          />
+        </div>
+      ) : (
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            label="Inbox Baru"
+            value={newInbox}
+            hint={newInbox ? 'Menunggu respon' : 'Semua beres ✓'}
+            icon={<Inbox className="h-5 w-5" />}
+            accent="rose"
+          />
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">

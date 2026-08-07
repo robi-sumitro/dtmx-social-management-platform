@@ -640,6 +640,7 @@ function FlagsAdmin() {
   const toast = useToast();
   const { data, loading, refetch } = useFetch<FeatureFlag[]>(() => api.get('/admin/features'));
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  const NOT_IMPLEMENTED = new Set(['affiliates', 'teams', 'public_api']);
 
   const toggle = async (flag: FeatureFlag) => {
     setBusyKey(flag.key);
@@ -668,6 +669,9 @@ function FlagsAdmin() {
               <div>
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-semibold text-slate-800">{flag.name}</p>
+                  {NOT_IMPLEMENTED.has(flag.key) && (
+                    <Badge className="bg-amber-50 text-amber-600 ring-amber-200">Belum Tersedia</Badge>
+                  )}
                   <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-500">{flag.key}</code>
                 </div>
                 {flag.description && <p className="mt-0.5 text-xs text-slate-400">{flag.description}</p>}

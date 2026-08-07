@@ -8,7 +8,6 @@ import {
   Copy,
   Check,
   Play,
-  RefreshCw,
 } from 'lucide-react';
 import { useFetch } from '@/lib/useApi';
 import { api, mediaUrl } from '@/lib/api';
@@ -24,10 +23,9 @@ import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { Modal } from '@/components/ui/Modal';
 import { useToast } from '@/components/ui/Toast';
 
-function MediaPreview({ file, onUpdated }: { file: MediaFile; onUpdated: () => void }) {
+function MediaPreview({ file }: { file: MediaFile }) {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [regenerating, setRegenerating] = useState(false);
   const toast = useToast();
   const url = mediaUrl(file.filename);
 
@@ -40,28 +38,6 @@ function MediaPreview({ file, onUpdated }: { file: MediaFile; onUpdated: () => v
       setTimeout(() => setCopied(false), 1500);
     } catch {
       /* noop */
-    }
-  };
-
-  const regenerateThumb = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setRegenerating(true);
-    try {
-      const blob = await extractVideoThumbnail(url);
-      if (!blob) {
-        await api.post(`/media/${file.id}/thumbnail`);
-        toast.success('Thumbnail dibuat', 'Thumbnail video berhasil diperbarui.');
-      } else {
-        const formData = new FormData();
-        formData.append('thumbnail', blob, 'thumb.jpg');
-        await api.upload(`/media/${file.id}/thumbnail-upload`, formData);
-        toast.success('Thumbnail dibuat', 'Thumbnail video berhasil diperbarui.');
-      }
-      onUpdated();
-    } catch (err) {
-      toast.error('Gagal membuat thumbnail', err instanceof Error ? err.message : 'Terjadi kesalahan');
-    } finally {
-      setRegenerating(false);
     }
   };
 
@@ -84,26 +60,6 @@ function MediaPreview({ file, onUpdated }: { file: MediaFile; onUpdated: () => v
                 <Play className="h-3 w-3" />
                 {file.duration ? formatDuration(file.duration) : 'Video'}
               </span>
-              {!file.thumbnail && (
-                <span
-                  role="button"
-                  tabIndex={0}
-                  onClick={regenerateThumb}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      void regenerateThumb(e as unknown as React.MouseEvent);
-                    }
-                  }}
-                  className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/30 transition hover:bg-black/50"
-                >
-                  {regenerating ? (
-                    <RefreshCw className="h-5 w-5 animate-spin text-white" />
-                  ) : (
-                    <span className="rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm">Buat thumbnail</span>
-                  )}
-                </span>
-              )}
             </div>
           ) : file.fileType === 'text' ? (
             <div className="flex h-40 items-center justify-center bg-brand-gradient-soft">
@@ -282,7 +238,7 @@ export function Media() {
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {files.map((file) => (
             <div key={file.id} className="relative group">
-              <MediaPreview file={file} onUpdated={() => refetch()} />
+              <MediaPreview file={file} />
               <button
                 onClick={() => setDeleteTarget(file)}
                 className="absolute right-2.5 top-2.5 rounded-lg bg-white/90 p-2 text-rose-500 opacity-0 shadow-sm transition hover:bg-rose-50 group-hover:opacity-100"

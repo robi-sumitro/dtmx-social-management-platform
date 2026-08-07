@@ -195,7 +195,7 @@ export interface UsageResponse {
   accountsUsed: number;
   postsUsed: number;
   aiUsed: number;
-  limits: { accounts: number; posts: number; ai: number };
+  limits: { accounts?: number; posts?: number; ai?: number };
 }
 
 export interface AdminDashboard {
@@ -216,25 +216,7 @@ export interface InboxListResponse {
   counts?: Record<string, number>;
 }
 
-export interface AccountInsights {
-  accountId: string;
-  accountName: string;
-  provider: string;
-  avatarUrl?: string | null;
-  reach: number;
-  engagementRate: number;
-  linkClicks: number;
-  error?: string;
-}
-
-export interface AnalyticsSummary {
-  reach: number;
-  engagementRate: number;
-  linkClicks: number;
-  publishedPosts: number;
-  lastSyncedAt?: string | null;
-  byAccount: AccountInsights[];
-}
+export type { AnalyticsSummary, AccountInsights } from '@dtmx/shared';
 
 export interface PendingSubscription {
   id: string;
@@ -291,6 +273,6 @@ export interface ApiError {
   error?: string;
 }
 
-export type PostStatus = 'draft' | 'scheduled' | 'publishing' | 'published' | 'failed' | 'cancelled' | 'paused';
+export type PostStatus = 'draft' | 'scheduled' | 'publishing' | 'published' | 'partial' | 'failed' | 'cancelled';
 export type PostType = 'text' | 'image' | 'video' | 'carousel' | 'short_video';
 export type PaymentMethod = 'manual' | 'stripe' | 'tripay' | 'midtrans';

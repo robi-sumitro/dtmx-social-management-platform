@@ -115,9 +115,9 @@ export function Dashboard() {
             ) : usage.data?.plan ? (
               <div className="space-y-6">
                 {[
-                  { label: 'Akun Sosial', used: usage.data.accountsUsed, max: usage.data.limits.accounts },
-                  { label: 'Posting / Bulan', used: usage.data.postsUsed, max: usage.data.limits.posts },
-                  { label: 'Kuota AI / Bulan', used: usage.data.aiUsed, max: usage.data.limits.ai },
+                  { label: 'Akun Sosial', used: usage.data.accountsUsed, max: usage.data.limits.accounts ?? 0 },
+                  { label: 'Posting / Bulan', used: usage.data.postsUsed, max: usage.data.limits.posts ?? 0 },
+                  { label: 'Kuota AI / Bulan', used: usage.data.aiUsed, max: usage.data.limits.ai ?? 0 },
                 ].map((row) => {
                   const pct = row.max > 0 ? Math.round((row.used / row.max) * 100) : 0;
                   return (

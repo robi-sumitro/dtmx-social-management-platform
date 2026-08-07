@@ -1,26 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PlatformsService } from '../platforms/platforms.service';
-
-export interface AccountInsights {
-  accountId: string;
-  accountName: string;
-  provider: string;
-  avatarUrl?: string | null;
-  reach: number;
-  engagementRate: number;
-  linkClicks: number;
-  error?: string;
-}
-
-export interface AnalyticsSummary {
-  reach: number;
-  engagementRate: number;
-  linkClicks: number;
-  publishedPosts: number;
-  lastSyncedAt: Date | null;
-  byAccount: AccountInsights[];
-}
+import { AnalyticsSummary, AccountInsights } from '@dtmx/shared';
 
 @Injectable()
 export class AnalyticsService {

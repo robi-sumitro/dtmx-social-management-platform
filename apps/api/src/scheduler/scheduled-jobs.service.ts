@@ -1,7 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service';
-import { FeatureFlagService } from '../features/feature-flag.service';
 import { BulkProcessor } from '../queue/bulk.processor';
 import { RedisLockService } from './redis-lock.service';
 
@@ -12,7 +11,6 @@ export class ScheduledJobsService implements OnModuleInit {
   private readonly logger = new Logger(ScheduledJobsService.name);
   constructor(
     private readonly prisma: PrismaService,
-    private readonly flags: FeatureFlagService,
     private readonly bulk: BulkProcessor,
     private readonly locks: RedisLockService,
   ) {}

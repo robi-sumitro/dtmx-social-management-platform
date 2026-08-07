@@ -693,6 +693,7 @@ function PaymentsAdmin() {
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [savingSetting, setSavingSetting] = useState(false);
+  const [deletingKey, setDeletingKey] = useState<string | null>(null);
 
   const ALL_METHODS = ['manual', 'stripe', 'tripay', 'midtrans'];
 
@@ -725,6 +726,20 @@ function PaymentsAdmin() {
       toast.error('Gagal menyimpan', err instanceof Error ? err.message : 'Terjadi kesalahan');
     } finally {
       setSavingSetting(false);
+    }
+  };
+
+  const deleteSetting = async (key: string) => {
+    if (!window.confirm(`Hapus pengaturan "${key}"?`)) return;
+    setDeletingKey(key);
+    try {
+      await api.delete(`/admin/payments/settings/${key}`);
+      toast.success('Pengaturan dihapus');
+      settings.refetch();
+    } catch (err) {
+      toast.error('Gagal menghapus', err instanceof Error ? err.message : 'Terjadi kesalahan');
+    } finally {
+      setDeletingKey(null);
     }
   };
 
@@ -807,6 +822,9 @@ function PaymentsAdmin() {
                     {s.value && <code className="rounded-lg bg-slate-100 px-2.5 py-1.5 text-sm font-semibold text-slate-700">{s.value}</code>}
                     <Button size="sm" variant="ghost" onClick={() => startEdit(s)} icon={<Pencil className="h-3.5 w-3.5" />}>
                       Edit
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => void deleteSetting(s.key)} loading={deletingKey === s.key} icon={<Trash2 className="h-3.5 w-3.5" />}>
+                      Hapus
                     </Button>
                   </div>
                 )}

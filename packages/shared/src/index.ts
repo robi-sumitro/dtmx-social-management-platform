@@ -22,9 +22,9 @@ export const POST_STATUS = [
   'scheduled',
   'publishing',
   'published',
+  'partial',
   'failed',
   'cancelled',
-  'paused',
 ] as const;
 
 export type PostStatus = (typeof POST_STATUS)[number];
@@ -45,11 +45,11 @@ export const PAYMENT_METHODS = ['manual', 'stripe', 'tripay', 'midtrans'] as con
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 
 export const PAYMENT_STATUS = [
-  'pending',
-  'paid',
-  'failed',
-  'expired',
-  'refunded',
+  'PENDING',
+  'PAID',
+  'FAILED',
+  'EXPIRED',
+  'REFUNDED',
 ] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUS)[number];
 
@@ -64,3 +64,23 @@ export type AIProvider = (typeof AI_PROVIDERS)[number];
 
 export const AI_FEATURES = ['auto_reply', 'content_writer', 'caption_help'] as const;
 export type AIFeature = (typeof AI_FEATURES)[number];
+
+export interface AccountInsights {
+  accountId: string;
+  accountName: string;
+  provider: string;
+  avatarUrl?: string | null;
+  reach: number;
+  engagementRate: number;
+  linkClicks: number;
+  error?: string;
+}
+
+export interface AnalyticsSummary {
+  reach: number;
+  engagementRate: number;
+  linkClicks: number;
+  publishedPosts: number;
+  lastSyncedAt: Date | null;
+  byAccount: AccountInsights[];
+}

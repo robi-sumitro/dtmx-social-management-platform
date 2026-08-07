@@ -168,9 +168,9 @@ export function Billing() {
             {usage.data?.plan && (
               <div className="mt-6 grid gap-5 sm:grid-cols-3">
                 {[
-                  { label: 'Akun Sosial', used: usage.data.accountsUsed, max: usage.data.limits.accounts },
-                  { label: 'Posting / Bulan', used: usage.data.postsUsed, max: usage.data.limits.posts },
-                  { label: 'Kuota AI / Bulan', used: usage.data.aiUsed, max: usage.data.limits.ai },
+                  { label: 'Akun Sosial', used: usage.data.accountsUsed, max: usage.data.limits.accounts ?? 0 },
+                  { label: 'Posting / Bulan', used: usage.data.postsUsed, max: usage.data.limits.posts ?? 0 },
+                  { label: 'Kuota AI / Bulan', used: usage.data.aiUsed, max: usage.data.limits.ai ?? 0 },
                 ].map((row) => (
                   <div key={row.label}>
                     <div className="mb-1.5 flex items-center justify-between text-xs">

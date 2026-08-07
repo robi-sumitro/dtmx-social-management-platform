@@ -91,11 +91,28 @@ export class ScheduledJobsService implements OnModuleInit {
   }
 
   // Pull new comments/DMs from connected accounts. Default 5 menit, bisa dipercepat via INBOX_SYNC_MINUTES (mis. 1 = tiap menit).
+  //
+  // Fan out: instead of one global job that loops over every account (a single
+  // slow/stuck account could delay or drop coverage for the rest), enqueue an
+  // independent `pull_inbox` job per active account. Each platform/account is
+  // then always fetched in the background, across providers, regardless of the
+  // last one that logged in.
   @Cron(`*/${INBOX_SYNC_MINUTES} * * * *`)
   async syncInbox() {
     if (!(await this.locks.acquire('sync-inbox', 4 * 60 * 1000))) return;
     try {
-      await this.bulk.enqueueAccountSync({ action: 'pull_inbox' });
+      const accounts = await this.prisma.socialAccount.findMany({
+        where: { isActive: true },
+        select: { id: true },
+      });
+      if (accounts.length === 0) return;
+      for (const acc of accounts) {
+        await this.bulk.enqueueAccountSync({
+          action: 'pull_inbox',
+          accountId: acc.id,
+        });
+      }
+      this.logger.log(`Enqueued inbox sync for ${accounts.length} active accounts`);
     } finally {
       await this.locks.release('sync-inbox');
     }

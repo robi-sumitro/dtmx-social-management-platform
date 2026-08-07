@@ -27,7 +27,18 @@ export class BulkProcessor {
     return this.emails.add('send', data);
   }
 
-  async enqueueAccountSync(data: { action: 'refresh_tokens' | 'pull_inbox'; accountId?: string }) {
-    return this.sync.add(data.action, data);
+  async enqueueAccountSync(data: {
+    action: 'refresh_tokens' | 'pull_inbox';
+    accountId?: string;
+    attempts?: number;
+  }) {
+    // Retry transient failures (API blips, rate limit, etc.) so every account
+    // eventually gets its inbox pulled even if a single pull fails once.
+    return this.sync.add(data.action, data, {
+      attempts: data.attempts ?? 3,
+      backoff: { type: 'exponential', delay: 5000 },
+      removeOnComplete: 500,
+      removeOnFail: 200,
+    });
   }
 }

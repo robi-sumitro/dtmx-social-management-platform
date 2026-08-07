@@ -26,7 +26,7 @@ interface OAuthConfig {
   appBaseUrl: string;
   frontendUrl: string;
   google: { configured: boolean; callbackUrl: string };
-  facebook: { configured: boolean; callbackUrl: string };
+  facebook: { configured: boolean; callbackUrl: string; connectCallbackUrl: string };
 }
 
 export function Settings() {
@@ -278,6 +278,13 @@ export function Settings() {
                       ? (cfg as { callbackUrl: string }).callbackUrl
                       : 'Status tidak tersedia'}
                   </p>
+                  {p.key === 'facebook' && (
+                    <p className="truncate text-xs text-slate-400">
+                      Connect: {typeof cfg === 'object' && cfg !== null && (cfg as { connectCallbackUrl?: string }).connectCallbackUrl
+                        ? (cfg as { connectCallbackUrl: string }).connectCallbackUrl
+                        : '-'}
+                    </p>
+                  )}
                 </div>
                 <Badge className={configured ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : 'bg-slate-100 text-slate-500 ring-slate-200'}>
                   {configured ? (

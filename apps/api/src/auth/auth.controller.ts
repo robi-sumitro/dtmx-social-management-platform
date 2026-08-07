@@ -87,6 +87,7 @@ export class AuthController {
       facebook: {
         configured: Boolean(this.config.get('FACEBOOK_APP_ID')),
         callbackUrl: `${getAppBaseUrl(this.config)}/api/auth/facebook/callback`,
+        connectCallbackUrl: `${getAppBaseUrl(this.config)}/api/social-accounts/auth/facebook/callback`,
       },
       tiktok: {
         configured: Boolean(this.config.get('TIKTOK_CLIENT_KEY')),

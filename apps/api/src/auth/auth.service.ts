@@ -13,6 +13,7 @@ import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from './email.service';
 import { RegisterDto, LoginDto } from './dto/auth.dto';
+import { DEFAULT_AUTO_REPLY_TEMPLATES } from '../auto-replies/default-templates';
 
 interface OauthSession {
   accessToken: string;
@@ -86,6 +87,9 @@ export class AuthService {
     // Ensure a free subscription exists so usage limits have a base.
     await this.assignFreeSubscription(user.id);
 
+    // Berikan template balasan otomatis bawaan (nonaktif) sebagai acuan.
+    await this.assignDefaultAutoReplies(user.id);
+
     this.email.sendWelcome(dto.email);
     return this.issueTokens(user);
   }
@@ -127,6 +131,7 @@ export class AuthService {
         },
       });
       await this.assignFreeSubscription(user.id);
+      await this.assignDefaultAutoReplies(user.id);
     } else if (!user.oauthId) {
       // link the provider to an existing manual account
       await this.prisma.user.update({
@@ -339,6 +344,30 @@ export class AuthService {
       }));
     } catch {
       return [];
+    }
+  }
+
+  private async assignDefaultAutoReplies(userId: string) {
+    try {
+      await this.prisma.autoReplyRule.createMany({
+        data: DEFAULT_AUTO_REPLY_TEMPLATES.map((t) => ({
+          userId,
+          accountId: null,
+          name: t.name,
+          matchType: t.matchType,
+          matchText: t.matchText || null,
+          replyTemplate: t.replyTemplate || null,
+          useAI: t.useAI,
+          aiProvider: t.aiProvider || null,
+          aiPrompt: t.aiPrompt || null,
+          enabled: false,
+        })),
+        skipDuplicates: true,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `gagal memberi template balasan otomatis ke user ${userId}: ${(err as Error).message}`,
+      );
     }
   }
 

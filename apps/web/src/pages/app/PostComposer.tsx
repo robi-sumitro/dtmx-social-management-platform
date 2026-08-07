@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { useFetch } from '@/lib/useApi';
 import { api, mediaUrl } from '@/lib/api';
+import { useFlags } from '@/lib/flags';
 import type { Post, SocialAccount, MediaFile } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { toLocalInputValue, fromLocalInputValue } from '@/lib/timezone';
@@ -93,6 +94,7 @@ const DEFAULT_PREVIEW = PREVIEW_META.instagram;
 export function PostComposer() {
   const navigate = useNavigate();
   const toast = useToast();
+  const { isEnabled } = useFlags();
   const [searchParams] = useSearchParams();
   const editId = searchParams.get('id') || undefined;
   const isEditing = Boolean(editId);
@@ -380,31 +382,33 @@ export function PostComposer() {
 
       <div className="grid gap-6 lg:grid-cols-5">
         <div className="space-y-6 lg:col-span-3">
-          <Card>
-            <CardHeader
-              icon={<Wand2 className="h-4 w-4" />}
-              title="Asisten AI"
-              description="Tulis ide, AI akan menyusun caption lengkap dengan hashtag."
-            />
-            <CardBody>
-              <div className="flex flex-col gap-2.5">
-                <Textarea
-                  rows={3}
-                  placeholder="Tulis ide/konten kamu di sini..."
-                  value={aiPrompt}
-                  onChange={(e) => setAiPrompt(e.target.value)}
-                  className="resize-none"
-                />
-                <Button
-                  onClick={() => void generateAI()}
-                  loading={aiLoading}
-                  icon={!aiLoading ? <Sparkles className="h-4 w-4" /> : undefined}
-                >
-                  Generate Caption
-                </Button>
-              </div>
-            </CardBody>
-          </Card>
+          {isEnabled('ai_caption') && (
+            <Card>
+              <CardHeader
+                icon={<Wand2 className="h-4 w-4" />}
+                title="Asisten AI"
+                description="Tulis ide, AI akan menyusun caption lengkap dengan hashtag."
+              />
+              <CardBody>
+                <div className="flex flex-col gap-2.5">
+                  <Textarea
+                    rows={3}
+                    placeholder="Tulis ide/konten kamu di sini..."
+                    value={aiPrompt}
+                    onChange={(e) => setAiPrompt(e.target.value)}
+                    className="resize-none"
+                  />
+                  <Button
+                    onClick={() => void generateAI()}
+                    loading={aiLoading}
+                    icon={!aiLoading ? <Sparkles className="h-4 w-4" /> : undefined}
+                  >
+                    Generate Caption
+                  </Button>
+                </div>
+              </CardBody>
+            </Card>
+          )}
 
           <Card>
             <CardHeader icon={<Send className="h-4 w-4" />} title="Konten" />

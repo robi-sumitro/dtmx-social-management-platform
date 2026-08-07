@@ -71,6 +71,14 @@ const featureFlags = [
   { key: 'media_upload', name: 'Media Library', description: 'Unggah media untuk posting', enabled: true },
   { key: 'scheduling', name: 'Post Scheduling', description: 'Jadwalkan posting otomatis', enabled: true },
   { key: 'publishing', name: 'Multi-Platform Publish', description: 'Terbitkan ke Facebook/IG/YouTube/TikTok', enabled: true },
+  { key: 'ai_caption', name: 'AI Content Generator', description: 'Generate caption & konten dengan AI', enabled: true },
+  { key: 'analytics', name: 'Analytics & Reports', description: 'Insight performa & laporan akun', enabled: true },
+  { key: 'user_registration', name: 'Pendaftaran Publik', description: 'Izinkan user baru mendaftar akun', enabled: true },
+  { key: 'notifications', name: 'Notifikasi In-App', description: 'Notifikasi aktivitas di dalam aplikasi', enabled: true },
+  { key: 'accounts', name: 'Koneksi Akun Sosial', description: 'Hubungkan & kelola akun Facebook/IG/YouTube/TikTok', enabled: true },
+  { key: 'public_api', name: 'Public API', description: 'Ekspos API publik untuk integrasi pihak ketiga', enabled: false },
+  { key: 'teams', name: 'Kolaborasi Tim', description: 'Kelola akses tim / multi-pengguna', enabled: false },
+  { key: 'affiliates', name: 'Program Afiliasi', description: 'Kelola afiliasi & komisi referral', enabled: false },
 ];
 
 const paymentSettings = [

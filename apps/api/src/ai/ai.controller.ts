@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post, UseGuards, BadRequestException } from '@nestjs/common';
 import { AIService } from './ai.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { FeatureFlagService } from '../features/feature-flag.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/auth.decorators';
 
@@ -10,6 +11,7 @@ export class AIController {
   constructor(
     private readonly ai: AIService,
     private readonly prisma: PrismaService,
+    private readonly flags: FeatureFlagService,
   ) {}
 
   @Get('status')
@@ -37,6 +39,7 @@ export class AIController {
     @CurrentUser('id') userId: string,
     @Body() body: { prompt: string; feature?: string; provider?: string },
   ) {
+    await this.flags.assertEnabled('ai_caption');
     const sub = await this.prisma.subscription.findFirst({
       where: { userId, status: 'active' },
       include: { plan: true },

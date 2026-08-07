@@ -1,6 +1,7 @@
 import { useEffect, lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
+import { useFlags } from '@/lib/flags';
 import { PageLoader } from '@/components/ui/Loading';
 import { Landing } from '@/pages/Landing';
 import {
@@ -48,6 +49,13 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function FeatureRoute({ flag, children }: { flag: string; children: React.ReactNode }) {
+  const { loading, isEnabled } = useFlags();
+  if (loading) return <PageLoader label="Memuat fitur..." />;
+  if (!isEnabled(flag)) return <Navigate to="/app" replace />;
+  return <>{children}</>;
+}
+
 function ScrollToTop() {
   const { pathname } = useLocation();
   useEffect(() => {
@@ -86,12 +94,47 @@ export function App() {
                   <Route path="posts" element={<Posts />} />
                   <Route path="posts/new" element={<PostComposer />} />
                   <Route path="posts/:id" element={<PostDetail />} />
-                  <Route path="inbox" element={<Inbox />} />
-                  <Route path="media" element={<Media />} />
-                  <Route path="auto-replies" element={<AutoReplies />} />
-                  <Route path="accounts" element={<Accounts />} />
+                  <Route
+                    path="inbox"
+                    element={
+                      <FeatureRoute flag="inbox">
+                        <Inbox />
+                      </FeatureRoute>
+                    }
+                  />
+                  <Route
+                    path="media"
+                    element={
+                      <FeatureRoute flag="media_upload">
+                        <Media />
+                      </FeatureRoute>
+                    }
+                  />
+                  <Route
+                    path="auto-replies"
+                    element={
+                      <FeatureRoute flag="ai_replies">
+                        <AutoReplies />
+                      </FeatureRoute>
+                    }
+                  />
+                  <Route
+                    path="accounts"
+                    element={
+                      <FeatureRoute flag="accounts">
+                        <Accounts />
+                      </FeatureRoute>
+                    }
+                  />
                   <Route path="billing" element={<Billing />} />
-                  <Route path="notifications" element={<Notifications />} />
+                  <Route
+                    path="notifications"
+                    element={
+                      <FeatureRoute flag="notifications">
+                        <Notifications />
+                      </FeatureRoute>
+                    }
+                  />
                   <Route path="settings" element={<Settings />} />
                   <Route
                     path="admin"

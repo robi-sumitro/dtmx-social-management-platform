@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/lib/auth';
+import { useFlags } from '@/lib/flags';
 import { api } from '@/lib/api';
 import { LogoLight } from '@/components/ui/Logo';
 import { Avatar } from '@/components/ui/Avatar';
@@ -27,22 +28,23 @@ import { Badge } from '@/components/ui/Badge';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import type { LucideIcon } from 'lucide-react';
 
-type NavItem = { to: string; label: string; icon: LucideIcon; end?: boolean; badge?: string };
+type NavItem = { to: string; label: string; icon: LucideIcon; end?: boolean; badge?: string; flag?: string };
 
 const NAV: NavItem[] = [
   { to: '/app', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/app/posts', label: 'Postingan', icon: FileText },
-  { to: '/app/inbox', label: 'Inbox', icon: Inbox },
-  { to: '/app/auto-replies', label: 'Auto Reply', icon: Bot },
-  { to: '/app/media', label: 'Media Library', icon: ImageIcon },
-  { to: '/app/accounts', label: 'Akun Sosial', icon: Share2 },
+  { to: '/app/inbox', label: 'Inbox', icon: Inbox, flag: 'inbox' },
+  { to: '/app/auto-replies', label: 'Auto Reply', icon: Bot, flag: 'ai_replies' },
+  { to: '/app/media', label: 'Media Library', icon: ImageIcon, flag: 'media_upload' },
+  { to: '/app/accounts', label: 'Akun Sosial', icon: Share2, flag: 'accounts' },
   { to: '/app/billing', label: 'Billing & Paket', icon: CreditCard },
-  { to: '/app/notifications', label: 'Notifikasi', icon: Bell },
+  { to: '/app/notifications', label: 'Notifikasi', icon: Bell, flag: 'notifications' },
   { to: '/app/settings', label: 'Pengaturan', icon: Settings },
 ];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, isAdmin, logout } = useAuth();
+  const { isEnabled, loading: flagsLoading } = useFlags();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -53,6 +55,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const headerMenuRef = useRef<HTMLDivElement>(null);
 
   const isSettings = location.pathname === '/app/settings';
+
+  const visibleNav = flagsLoading ? NAV : NAV.filter((item) => !item.flag || isEnabled(item.flag));
+  const navItems = visibleNav.length > 0 ? visibleNav : NAV;
 
   // Badge Inbox di sidebar: jumlah yang belum diabaikan (sama dengan tab "Baru").
   useEffect(() => {
@@ -107,7 +112,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-4">
-        {NAV.map((item) => (
+        {navItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}

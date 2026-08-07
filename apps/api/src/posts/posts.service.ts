@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { BulkProcessor } from '../queue/bulk.processor';
+import { FeatureFlagService } from '../features/feature-flag.service';
 
 export interface CreatePostInput {
   title?: string;
@@ -20,6 +21,7 @@ export class PostsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly bulk: BulkProcessor,
+    private readonly flags: FeatureFlagService,
   ) {}
 
   async create(userId: string, input: CreatePostInput) {
@@ -157,6 +159,7 @@ export class PostsService {
   }
 
   async schedule(id: string) {
+    await this.flags.assertEnabled('scheduling');
     const post = await this.prisma.post.update({
       where: { id },
       data: { status: 'scheduled' },
@@ -170,6 +173,7 @@ export class PostsService {
   }
 
   async publishNow(id: string) {
+    await this.flags.assertEnabled('publishing');
     await this.prisma.post.update({
       where: { id },
       data: { status: 'publishing' },

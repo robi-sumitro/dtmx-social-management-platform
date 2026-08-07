@@ -5,11 +5,13 @@ import { AuthLayout } from './AuthLayout';
 import { Input } from '@/components/ui/Field';
 import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/lib/auth';
+import { useFlags } from '@/lib/flags';
 import { useToast } from '@/components/ui/Toast';
 import { oauthUrl } from '@/lib/api';
 
 export function Register() {
   const { register, isAuthenticated, loading: authLoading } = useAuth();
+  const { isEnabled, loading: flagsLoading } = useFlags();
   const toast = useToast();
   const navigate = useNavigate();
 
@@ -18,8 +20,9 @@ export function Register() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
-  if (authLoading) return null;
+  if (authLoading || flagsLoading) return null;
   if (isAuthenticated) return <Navigate to="/app" replace />;
+  if (!isEnabled('user_registration')) return <Navigate to="/auth/login" replace />;
 
   const set = (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));

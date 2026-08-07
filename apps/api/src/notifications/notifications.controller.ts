@@ -1,15 +1,20 @@
 import { Controller, Delete, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
+import { FeatureFlagService } from '../features/feature-flag.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/auth.decorators';
 
 @Controller('notifications')
 @UseGuards(JwtAuthGuard)
 export class NotificationsController {
-  constructor(private readonly notifications: NotificationsService) {}
+  constructor(
+    private readonly notifications: NotificationsService,
+    private readonly flags: FeatureFlagService,
+  ) {}
 
   @Get()
-  list(@CurrentUser('id') userId: string, @Query('limit') limit?: string) {
+  async list(@CurrentUser('id') userId: string, @Query('limit') limit?: string) {
+    await this.flags.assertEnabled('notifications');
     return this.notifications.listForUser(userId, limit ? Number(limit) : 50);
   }
 

@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { FeatureFlagService } from '../features/feature-flag.service';
 import { createWriteStream, mkdirSync, existsSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { randomUUID } from 'crypto';
@@ -80,9 +81,11 @@ export class MediaService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: FileStorageService,
+    private readonly flags: FeatureFlagService,
   ) {}
 
   async uploadMany(userId: string, files: Express.Multer.File[]) {
+    await this.flags.assertEnabled('media_upload');
     if (!files || files.length === 0) throw new BadRequestException('Wajib unggah minimal 1 file');
     const results: any[] = [];
     for (const f of files) {
@@ -92,6 +95,7 @@ export class MediaService {
   }
 
   async upload(userId: string, file: Express.Multer.File, folder = 'media') {
+    await this.flags.assertEnabled('media_upload');
     if (!file) throw new BadRequestException('File wajib diunggah');
     const info = await this.storage.save(file.buffer, file.mimetype, folder);
     const absPath = join(this.storage.uploadRoot, info.filename);

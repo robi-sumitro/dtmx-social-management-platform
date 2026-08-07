@@ -1,11 +1,9 @@
 import {
-  Body,
   Controller,
   Delete,
   Get,
   Param,
   Patch,
-  Post,
   Query,
   Res,
   UseGuards,
@@ -13,6 +11,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { SocialAccountsService } from './social-accounts.service';
 import { SocialOAuthService } from './social-oauth.service';
+import { FeatureFlagService } from '../features/feature-flag.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser, Public } from '../common/decorators/auth.decorators';
 import { getFrontendUrl } from '../common/app-url';
@@ -24,16 +23,13 @@ export class SocialAccountsController {
     private readonly svc: SocialAccountsService,
     private readonly oauth: SocialOAuthService,
     private readonly config: ConfigService,
+    private readonly flags: FeatureFlagService,
   ) {}
 
   @Get()
-  list(@CurrentUser('id') userId: string) {
+  async list(@CurrentUser('id') userId: string) {
+    await this.flags.assertEnabled('accounts');
     return this.svc.list(userId);
-  }
-
-  @Post('connect')
-  connect(@Body() body: any, @CurrentUser('id') userId: string) {
-    return this.svc.connect(userId, body);
   }
 
   @Patch('refresh')

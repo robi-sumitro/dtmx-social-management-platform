@@ -14,6 +14,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
+import { FeatureFlagService } from '../features/feature-flag.service';
 import { RegisterDto, LoginDto, ForgotPasswordDto, ResetPasswordDto, RefreshTokenDto } from './dto/auth.dto';
 import { Public, CurrentUser } from '../common/decorators/auth.decorators';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -24,11 +25,13 @@ export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly config: ConfigService,
+    private readonly flags: FeatureFlagService,
   ) {}
 
   @Public()
   @Post('register')
   async register(@Body() dto: RegisterDto) {
+    await this.flags.assertEnabled('user_registration');
     return this.auth.register(dto);
   }
 

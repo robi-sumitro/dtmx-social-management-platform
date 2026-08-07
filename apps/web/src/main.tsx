@@ -5,6 +5,7 @@ import '@fontsource-variable/inter';
 import './index.css';
 import { App } from './App';
 import { AuthProvider } from './lib/auth';
+import { FlagsProvider } from './lib/flags';
 import { ToastProvider } from './components/ui/Toast';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -12,7 +13,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <ToastProvider>
         <AuthProvider>
-          <App />
+          <FlagsProvider>
+            <App />
+          </FlagsProvider>
         </AuthProvider>
       </ToastProvider>
     </BrowserRouter>
